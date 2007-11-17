@@ -6,16 +6,13 @@ Requires adodbapi 2.0.1: http://adodbapi.sourceforge.net/
 
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations, util
 try:
-    import adodbapi as Database
+    import adodb_django as Database
 except ImportError, e:
     from django.core.exceptions import ImproperlyConfigured
     raise ImproperlyConfigured("Error loading adodbapi module: %s" % e)
-import datetime
-try:
-    import mx
-except ImportError:
-    mx = None
 
+import datetime
+    
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError
 
@@ -34,11 +31,6 @@ def variantToPython(variant, adType):
     if type(variant) == bool and adType == 11:
         return variant  # bool not 1/0
     res = origCVtoP(variant, adType)
-    if mx is not None and type(res) == mx.DateTime.mxDateTime.DateTimeType:
-        # Convert ms.DateTime objects to Python datetime.datetime objects.
-        tv = list(res.tuple()[:7])
-        tv[-2] = int(tv[-2])
-        return datetime.datetime(*tuple(tv))
     if type(res) == float and str(res)[-2:] == ".0":
         return int(res) # If float but int, then int.
     return res
