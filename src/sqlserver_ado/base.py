@@ -1,7 +1,7 @@
 """
 ADO MSSQL database backend for Django.
 
-Requires adodbapi 2.0.1: http://adodbapi.sourceforge.net/
+Includes adodb_django, based on  adodbapi 2.1: http://adodbapi.sourceforge.net/
 """
 
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations, util
@@ -12,6 +12,7 @@ except ImportError, e:
     raise ImproperlyConfigured("Error loading adodbapi module: %s" % e)
 
 import datetime
+import re
     
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError
@@ -19,12 +20,33 @@ IntegrityError = Database.IntegrityError
 # We need to use a special Cursor class because adodbapi expects question-mark
 # param style, but Django expects "%s". This cursor converts question marks to
 # format-string style.
-class ConvertParamsToQuestionMarkCursor(Database.Cursor):
+class CursorWrapper(Database.Cursor):
+    def __init__(self, connection):
+        Database.Cursor.__init__(self,connection)
+        self._limit_re = re.compile(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
+        
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
-        if parameters is not None and "%s" in operation:
-            operation = operation.replace("%s", "?")
-        Database.Cursor._executeHelper(self, operation, isStoredProcedureCall, parameters)
+        sql = operation # So we can see the original and modified SQL in a traceback
 
+        # Convert parameter style
+        # Todo: Make this less naive; as it stands it would kill a wildcard prefix search.
+        if parameters is not None and "%s" in sql:
+            sql = sql.replace("%s", "?")
+            
+        # Look for LIMIT/OFFSET in the SQL
+        limit, offset = self._limit_re.search(sql).groups()
+        sql = self._limit_re.sub('', sql) 
+        
+        # This backend does not yet support OFFSET
+        if offset is not None:
+            raise NotSupportedError, 'Offset is not supported by this backend.'
+        
+        # Convert a LIMIT clause to a TOP clause.
+        if limit is not None: 
+            limit = int(limit)
+            sql = (' TOP %s ' % limit).join(sql.split(None, 1))
+
+        Database.Cursor._executeHelper(self, sql, isStoredProcedureCall, parameters)
 
 origCVtoP = Database.convertVariantToPython
 def variantToPython(variant, adType):
@@ -94,4 +116,4 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             # TODO: Handle DATABASE_PORT.
             conn_string = "PROVIDER=SQLOLEDB;DATA SOURCE=%s;UID=%s;PWD=%s;DATABASE=%s" % (settings.DATABASE_HOST, settings.DATABASE_USER, settings.DATABASE_PASSWORD, settings.DATABASE_NAME)
             self.connection = Database.connect(conn_string)
-        return ConvertParamsToQuestionMarkCursor(self.connection)
+        return CursorWrapper(self.connection)
