@@ -39,7 +39,7 @@ class CursorWrapper(Database.Cursor):
         
         # This backend does not yet support OFFSET
         if offset is not None:
-            raise NotSupportedError, 'Offset is not supported by this backend.'
+            raise Database.NotSupportedError('Offset is not supported by this backend.')
         
         # Convert a LIMIT clause to a TOP clause.
         if limit is not None: 
@@ -88,6 +88,17 @@ class DatabaseOperations(BaseDatabaseOperations):
     def tablespace_sql(self, tablespace, inline=False):
         return "ON %s" % self.quote_name(tablespace)
 
+# IP Address recognizer taken from:
+# http://mail.python.org/pipermail/python-list/2006-March/375505.html
+def _looks_like_ipaddress(address):
+    dots = address.split(".")
+    if len(dots) != 4:
+        return False
+    for item in dots:
+        if not 0 <= int(item) <= 255:
+            return False
+    return True
+    
 class DatabaseWrapper(BaseDatabaseWrapper):
     features = DatabaseFeatures()
     ops = DatabaseOperations()
@@ -111,9 +122,21 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             if settings.DATABASE_NAME == '' or settings.DATABASE_USER == '':
                 from django.core.exceptions import ImproperlyConfigured
                 raise ImproperlyConfigured("You need to specify both DATABASE_NAME and DATABASE_USER in your Django settings file.")
+                
             if not settings.DATABASE_HOST:
                 settings.DATABASE_HOST = "127.0.0.1"
-            # TODO: Handle DATABASE_PORT.
-            conn_string = "PROVIDER=SQLOLEDB;DATA SOURCE=%s;UID=%s;PWD=%s;DATABASE=%s" % (settings.DATABASE_HOST, settings.DATABASE_USER, settings.DATABASE_PASSWORD, settings.DATABASE_NAME)
+                
+            datasource = settings.DATABASE_HOST
+            
+            # If a port is given, force a TCP/IP connection. The host should be an IP address in this case.
+            # Connection string courtesy of:
+            # http://www.connectionstrings.com/?carrier=sqlserver
+            if settings.DATABASE_PORT != '':
+                if not _looks_like_ipaddress(datasource):
+                    from django.core.exceptions import ImproperlyConfigured
+                    raise ImproperlyConfigured("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
+                datasource += "," + settings.DATABASE_PORT + ";Network Library=DBMSSOCN"
+            
+            conn_string = "PROVIDER=SQLOLEDB;DATA SOURCE=%s;UID=%s;PWD=%s;DATABASE=%s" % (datasource, settings.DATABASE_USER, settings.DATABASE_PASSWORD, settings.DATABASE_NAME)
             self.connection = Database.connect(conn_string)
         return CursorWrapper(self.connection)
