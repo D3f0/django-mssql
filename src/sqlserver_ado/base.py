@@ -119,14 +119,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
     def _cursor(self, settings):
         if self.connection is None:
-            if settings.DATABASE_NAME == '' or settings.DATABASE_USER == '':
+            if settings.DATABASE_NAME == '':
                 from django.core.exceptions import ImproperlyConfigured
-                raise ImproperlyConfigured("You need to specify both DATABASE_NAME and DATABASE_USER in your Django settings file.")
-                
-            if not settings.DATABASE_HOST:
-                settings.DATABASE_HOST = "127.0.0.1"
-                
+                raise ImproperlyConfigured("You need to specify a DATABASE_NAME in your Django settings file.")
+                    
             datasource = settings.DATABASE_HOST
+            if not datasource:
+                datasource = "127.0.0.1"
             
             # If a port is given, force a TCP/IP connection. The host should be an IP address in this case.
             # Connection string courtesy of:
@@ -136,7 +135,15 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                     from django.core.exceptions import ImproperlyConfigured
                     raise ImproperlyConfigured("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
                 datasource += "," + settings.DATABASE_PORT + ";Network Library=DBMSSOCN"
+                
+            # If no user is specified, default to integrated security.
+            if settings.DATABASE_USER != '':
+                auth_string = "UID=%s;PWD=%s" % (settings.DATABASE_USER, settings.DATABASE_PASSWORD)
+            else:
+                auth_string = "Integrated Security=SSPI"
             
-            conn_string = "PROVIDER=SQLOLEDB;DATA SOURCE=%s;UID=%s;PWD=%s;DATABASE=%s" % (datasource, settings.DATABASE_USER, settings.DATABASE_PASSWORD, settings.DATABASE_NAME)
+            conn_string = "PROVIDER=SQLOLEDB;DATA SOURCE=%s;Initial Catalog=%s;%s" % \
+                (datasource, settings.DATABASE_NAME, auth_string)
+                
             self.connection = Database.connect(conn_string)
         return CursorWrapper(self.connection)
