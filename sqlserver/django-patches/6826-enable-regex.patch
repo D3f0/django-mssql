@@ -1,0 +1,18 @@
+Index: django/db/models/query.py
+===================================================================
+--- django/db/models/query.py	(revision 6826)
++++ django/db/models/query.py	(working copy)
+@@ -824,6 +824,13 @@
+             else:
+                 match_option = 'i'
+             return "REGEXP_LIKE(%s, %s, '%s')" % (field_sql, cast_sql, match_option)
++        elif settings.DATABASE_ENGINE == 'sqlserver_ado' and \
++                hasattr(settings, 'DATABASE_MSSQL_REGEX') and settings.DATABASE_MSSQL_REGEX:
++            if lookup_type == 'regex':
++                match_option = 1
++            else:
++                match_option = 0
++            return "dbo.REGEXP_LIKE(%s, %s, %s)=1" % (field_sql, cast_sql, match_option)
+         else:
+             raise NotImplementedError
+     raise TypeError, "Got invalid lookup_type: %s" % repr(lookup_type)
