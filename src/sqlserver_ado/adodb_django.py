@@ -1,5 +1,5 @@
-"""adodbapi v2.1 -  A python DB API 2.0 interface to Microsoft ADO
-    
+"""adodbapi v2.1D -  A python DB API 2.0 interface to Microsoft ADO
+
     Copyright (C) 2002  Henrik Ekelund
     Email: <http://sourceforge.net/sendmessage.php?touser=618411>
 
@@ -20,10 +20,14 @@
     version 2.1 by Vernon Cole -- update for Decimal data type
     (requires Python 2.4 or above or or Python 2.3 with "import win32com.decimal_23")
     all uses of "verbose" below added by Cole for v2.1
-    
+
     version 2.1D by Adam Vandenberg:
     * Ripped out MX support; mx not suppored by Django
     * Ripped out IronPython support, CoInitialize doesn't get called early enough anymore.
+    * Removed self.cmd.Parameters.Refresh(); always fall back on generated parameters
+        - Parameters are generated incorrectly for use in UDFs.
+    * DateObjectFromCOMDate always returns a DateTime, as this is what Django template
+    	filters expect from a DateTimeField
 """
 
 import string
@@ -37,7 +41,7 @@ import datetime
 
 try:
     import decimal
-except ImportError:  #perhaps running Cpython 2.3 
+except ImportError:  #perhaps running Cpython 2.3
     import win32com.decimal_23 as decimal
 
 import win32com.client
@@ -50,22 +54,22 @@ def standardErrorHandler(connection,cursor,errorclass,errorvalue):
     if cursor!=None:
         cursor.messages.append(err)
     raise errorclass(errorvalue)
-    
-   
+
+
 class TimeConverter:
     def __init__(self):
-        #Use self.types to compare if an input parameter is a datetime 
+        #Use self.types to compare if an input parameter is a datetime
         self.types = (type(self.Date(2000,1,1)),
                       type(self.Time(12,01,1)),
                       type(self.Timestamp(2000,1,1,12,1,1)))
     def COMDate(self,obj):
         'Returns a ComDate from a datetime in inputformat'
         raise "Abstract class"
-    
+
     def DateObjectFromCOMDate(self,comDate):
         'Returns an object of the wanted type from a ComDate'
         raise "Abstract class"
-    
+
     def Date(self,year,month,day):
         "This function constructs an object holding a date value. "
         raise "Abstract class"
@@ -80,14 +84,14 @@ class TimeConverter:
 
     def DateObjectToIsoFormatString(self,obj):
         "This function should return a string in the format 'YYYY-MM-dd HH:MM:SS:ms' (ms optional) "
-        raise "Abstract class"        
-    
+        raise "Abstract class"
+
 
 class pythonDateTimeConverter(TimeConverter): # datetime module is available in Python 2.3
-    def __init__(self):       
+    def __init__(self):
         self._ordinal_1899_12_31=datetime.date(1899,12,31).toordinal()-1
         TimeConverter.__init__(self)
-        
+
     def COMDate(self,obj):
         tt=obj.timetuple()
         try:
@@ -103,13 +107,17 @@ class pythonDateTimeConverter(TimeConverter): # datetime module is available in 
         millisecondsperday=86400000 # 24*60*60*1000
         integerPart = int(fComDate)
         floatpart=fComDate-integerPart
+        
+        # adamv: Changed from datetime.date to datetime.datetime,
+        # time will be midnight
         if floatpart == 0.0:
-            return datetime.date.fromordinal(integerPart + self._ordinal_1899_12_31)
+            return datetime.datetime.fromordinal(integerPart + self._ordinal_1899_12_31)
+            
         dte=datetime.datetime.fromordinal(integerPart + self._ordinal_1899_12_31)
         dte=dte+datetime.timedelta(milliseconds=floatpart*millisecondsperday)
         return dte
 
-    
+
     def Date(self,year,month,day):
         return datetime.date(year,month,day)
 
@@ -140,18 +148,18 @@ class pythonTimeConverter(TimeConverter):
         daysInMonth=[31,28,31,30,31,30,31,30,31,30,31,30]
         cumulative=0
         self.monthCumDays={}
-        for i in range(12):       
+        for i in range(12):
             self.monthCumDays[i+1]=cumulative
             cumulative+=daysInMonth[i]
         TimeConverter.__init__(self)
 
     def COMDate(self,timeobj):
         return float(pythoncom.MakeTime(time.mktime(timeobj)))
-        
+
     def COMDateFromTuple(self,YMDHMSmsTuple):
         t=pythoncom.MakeTime(YMDHMSmsTuple)
         return float(t)
-        
+
     def DateObjectFromCOMDate(self,comDate):
         'Returns ticks since 1970'
         secondsperday=86400 # 24*60*60
@@ -172,7 +180,7 @@ class pythonTimeConverter(TimeConverter):
         weekday=calendar.weekday(year,month,day)
         daylightsaving=-1
         return time.localtime(time.mktime((year,month,day,hour,minute,second,weekday,julian,daylightsaving)))
-    
+
     def DateObjectToIsoFormatString(self,obj):
         try:
             s = time.strftime('%Y-%m-%d %H:%M:%S',obj)
@@ -189,12 +197,12 @@ class Warning(exceptions.StandardError):
 class InterfaceError(Error):
     def __init__(self, inner_exception=None):
         self.inner_exception = inner_exception
-    
+
     def __str__(self):
         s = "InterfaceError"
         if self.inner_exception is not None:
             s += "\n" + str(self.inner_exception)
-            
+
         return s
 
 class DatabaseError(Error):
@@ -237,22 +245,20 @@ def connect(connstr, timeout=30):               #v2.1 Simons
     except (Exception), e:
         raise DatabaseError(e)
     return Connection(conn)
-        
+
 apilevel='2.0' #String constant stating the supported DB API level.
 
-threadsafety=1 
+threadsafety=1
 # Integer constant stating the level of thread safety the interface supports,
-# 1 = Threads may share the module, but not connections. 
-# TODO: Have not tried this, maybe it is better than 1?
-## 
+# 1 = Threads may share the module, but not connections.
 ## Possible values are:
-##0 = Threads may not share the module. 
-##1 = Threads may share the module, but not connections. 
-##2 = Threads may share the module and connections. 
-##3 = Threads may share the module, connections and cursors. 
+##0 = Threads may not share the module.
+##1 = Threads may share the module, but not connections.
+##2 = Threads may share the module and connections.
+##3 = Threads may share the module, connections and cursors.
 
 paramstyle='qmark'
-#String constant stating the type of parameter marker formatting expected by the interface. 
+#String constant stating the type of parameter marker formatting expected by the interface.
 # 'qmark' = Question mark style, e.g. '...WHERE name=?'
 
 
@@ -280,7 +286,7 @@ defaultCursorLocation=adUseServer                       #v2.1 Rose
 #   It may be one of the above
 
 class Connection:
-    def __init__(self,adoConn):       
+    def __init__(self,adoConn):
         self.adoConn=adoConn
         self.supportsTransactions=False
         for indx in range(adoConn.Properties.Count):
@@ -314,13 +320,13 @@ class Connection:
 
     def close(self):
         """Close the connection now (rather than whenever __del__ is called).
-        
+
         The connection will be unusable from this point forward;
         an Error (or subclass) exception will be raised if any operation is attempted with the connection.
-        The same applies to all cursor objects trying to use the connection. 
+        The same applies to all cursor objects trying to use the connection.
         """
         self.messages=[]
-        
+
         try:
             self._closeAdoConnection()                      #v2.1 Rose
         except (Exception), e:
@@ -331,20 +337,20 @@ class Connection:
         """Commit any pending transaction to the database.
 
         Note that if the database supports an auto-commit feature,
-        this must be initially off. An interface method may be provided to turn it back on. 
-        Database modules that do not support transactions should implement this method with void functionality. 
+        this must be initially off. An interface method may be provided to turn it back on.
+        Database modules that do not support transactions should implement this method with void functionality.
         """
-        self.messages=[]        
+        self.messages=[]
         try:
             if self.supportsTransactions:
                 self.adoConn.CommitTrans()
                 if not(self.adoConn.Attributes & adXactCommitRetaining):
                     #If attributes has adXactCommitRetaining it performs retaining commits that is,
                     #calling CommitTrans automatically starts a new transaction. Not all providers support this.
-                    #If not, we will have to start a new transaction by this command:                
+                    #If not, we will have to start a new transaction by this command:
                     self.adoConn.BeginTrans()
         except (Exception), e:
-            self._raiseConnectionError(Error,e)        
+            self._raiseConnectionError(Error,e)
 
     def rollback(self):
         """In case a database does provide transactions this method causes the the database to roll back to
@@ -352,16 +358,16 @@ class Connection:
         cause an implicit rollback to be performed.
 
         If the database does not support the functionality required by the method, the interface should
-        throw an exception in case the method is used. 
+        throw an exception in case the method is used.
         The preferred approach is to not implement the method and thus have Python generate
         an AttributeError in case the method is requested. This allows the programmer to check for database
-        capabilities using the standard hasattr() function. 
+        capabilities using the standard hasattr() function.
 
         For some dynamically configured interfaces it may not be appropriate to require dynamically making
         the method available. These interfaces should then raise a NotSupportedError to indicate the
-        non-ability to perform the roll back when the method is invoked. 
+        non-ability to perform the roll back when the method is invoked.
         """
-        self.messages=[]        
+        self.messages=[]
         if self.supportsTransactions:
             self.adoConn.RollbackTrans()
             if not(self.adoConn.Attributes & adXactAbortRetaining):
@@ -371,16 +377,16 @@ class Connection:
                 self.adoConn.BeginTrans()
         else:
             self._raiseConnectionError(NotSupportedError,None)
-        
+
         #TODO: Could implement the prefered method by havins two classes,
         # one with trans and one without, and make the connect function choose which one.
         # the one without transactions should not implement rollback
 
     def cursor(self):
         "Return a new Cursor Object using the connection."
-        self.messages=[]        
+        self.messages=[]
         return Cursor(self)
-    
+
     def printADOerrors(self):
         j=self.adoConn.Errors.Count
         print 'ADO Errors:(%i)' % j
@@ -405,32 +411,32 @@ class Connection:
             pass
         self.adoConn=None
 
-    
+
 class Cursor:
     description=None
 ##    This read-only attribute is a sequence of 7-item sequences.
 ##    Each of these sequences contains information describing one result column:
 ##        (name, type_code, display_size, internal_size, precision, scale, null_ok).
 ##    This attribute will be None for operations that do not return rows or if the
-##    cursor has not had an operation invoked via the executeXXX() method yet. 
-##    The type_code can be interpreted by comparing it to the Type Objects specified in the section below. 
+##    cursor has not had an operation invoked via the executeXXX() method yet.
+##    The type_code can be interpreted by comparing it to the Type Objects specified in the section below.
 
     rowcount = -1
 ##    This read-only attribute specifies the number of rows that the last executeXXX() produced
-##    (for DQL statements like select) or affected (for DML statements like update or insert). 
+##    (for DQL statements like select) or affected (for DML statements like update or insert).
 ##    The attribute is -1 in case no executeXXX() has been performed on the cursor or
-##    the rowcount of the last operation is not determinable by the interface.[7] 
-##    N.O.T.E. -- adodbapi returns "-1" by default for all select statements
-    
+##    the rowcount of the last operation is not determinable by the interface.[7]
+##    NOTE: -- adodbapi returns "-1" by default for all select statements
+
     arraysize=1
 ##    This read/write attribute specifies the number of rows to fetch at a time with fetchmany().
-##    It defaults to 1 meaning to fetch a single row at a time. 
+##    It defaults to 1 meaning to fetch a single row at a time.
 ##    Implementations must observe this value with respect to the fetchmany() method,
 ##    but are free to interact with the database a single row at a time.
-##    It may also be used in the implementation of executemany(). 
+##    It may also be used in the implementation of executemany().
 
     def __init__(self,connection):
-        self.messages=[]        
+        self.messages=[]
         self.conn=connection
         self.rs=None
         self.description=None
@@ -440,7 +446,7 @@ class Cursor:
 
     def __iter__(self):                   # [2.1 Zamarev]
         return iter(self.fetchone, None)  # [2.1 Zamarev]
-       
+
     def _raiseCursorError(self,errorclass,errorvalue):
         eh=self.errorhandler
         if eh==None:
@@ -453,21 +459,21 @@ class Cursor:
             The sequence of parameters must contain one entry for each argument that the procedure expects.
             The result of the call is returned as modified copy of the input sequence.
             Input parameters are left untouched, output and input/output parameters replaced
-            with possibly new values. 
+            with possibly new values.
 
             The procedure may also provide a result set as output, which is
             then available through the standard fetchXXX() methods.
         """
-        self.messages=[]                
+        self.messages=[]
         return self._executeHelper(procname,True,parameters)
 
     def _returnADOCommandParameters(self,adoCommand):
         retLst=[]
-        for i in range(adoCommand.Parameters.Count):                
+        for i in range(adoCommand.Parameters.Count):
             p=adoCommand.Parameters(i)
             if verbose > 2:
                    'return', p.Name, p.Type, p.Direction, repr(p.Value)
-            type_code=p.Type 
+            type_code=p.Type
             pyObject=convertVariantToPython(p.Value,type_code)
             if p.Direction == adParamReturnValue:
                 self.returnValue=pyObject
@@ -475,8 +481,8 @@ class Cursor:
                 retLst.append(pyObject)
         return retLst
 
-    def _makeDescriptionFromRS(self,rs):        
-        if (rs == None) or (rs.State == adStateClosed): 
+    def _makeDescriptionFromRS(self,rs):
+        if (rs == None) or (rs.State == adStateClosed):
             self.rs=None
             self.description=None
         else:
@@ -495,7 +501,7 @@ class Cursor:
             for i in range(nOfFields):
                 f=rs.Fields(i)
                 name=f.Name
-                type_code=f.Type 
+                type_code=f.Type
                 if not(rs.EOF or rs.BOF):
                     display_size=f.ActualSize #TODO: Is this the correct defintion according to the DB API 2 Spec ?
                 else:
@@ -503,15 +509,15 @@ class Cursor:
                 internal_size=f.DefinedSize
                 precision=f.Precision
                 scale=f.NumericScale
-                null_ok= bool(f.Attributes & adFldMayBeNull)          #v2.1 Cole 
+                null_ok= bool(f.Attributes & adFldMayBeNull)          #v2.1 Cole
                 self.description.append((name, type_code, display_size, internal_size, precision, scale, null_ok))
 
-    def close(self):        
+    def close(self):
         """Close the cursor now (rather than whenever __del__ is called).
             The cursor will be unusable from this point forward; an Error (or subclass)
             exception will be raised if any operation is attempted with the cursor.
         """
-        self.messages=[]                
+        self.messages=[]
         self.conn = None    #this will make all future method calls on me throw an exception
         if self.rs and self.rs.State != adStateClosed: # rs exists and is open      #v2.1 Rose
             self.rs.Close()                                                         #v2.1 Rose
@@ -537,7 +543,7 @@ class Cursor:
 # -- Vernon Cole v2.1
 # (code in executeHelper freely reformatted by me)
 #---------------------
-    def _executeHelper(self,operation,isStoredProcedureCall,parameters=None):        
+    def _executeHelper(self,operation,isStoredProcedureCall,parameters=None):
         if self.conn == None:
             self._raiseCursorError(Error,None)
             return
@@ -547,7 +553,7 @@ class Cursor:
             print 'adodbapi parameters=',repr(parameters)
 
         parmIndx=-1
-        try:                
+        try:
             self.cmd=win32com.client.Dispatch("ADODB.Command")
             self.cmd.ActiveConnection=self.conn.adoConn
             self.cmd.CommandTimeout = self.conn.adoConn.CommandTimeout  #v2.1 Simons
@@ -559,21 +565,21 @@ class Cursor:
 
             returnValueIndex=-1            # Initialize to impossible value
             if parameters != None:
-                try: # attempt to use ADO's parameter list
-                    self.cmd.Parameters.Refresh()
-                    defaultParameterList = False
-                except: # if it blows up
+                #try: # attempt to use ADO's parameter list
+                #    self.cmd.Parameters.Refresh()
+                #    defaultParameterList = False
+                #except: # if it blows up
                     #-- build own parameter list
-                    if verbose:
-                        print 'error in COM Refresh(). adodbapi building default parameter list'
-                    defaultParameterList = True # we don't know whether db is expecting dates
-                    for i,elem in enumerate(parameters):
-                        name='p%i' % i
-                        adotype = pyTypeToADOType(elem)
-                        p=self.cmd.CreateParameter(name,adotype) # Name, Type, Direction, Size, Value
-                        if isStoredProcedureCall:
-                            p.Direction=adParamUnknown
-                        self.cmd.Parameters.Append(p)  
+                if verbose:
+                    print 'error in COM Refresh(). adodbapi building default parameter list'
+                defaultParameterList = True # we don't know whether db is expecting dates
+                for i,elem in enumerate(parameters):
+                    name='p%i' % i
+                    adotype = pyTypeToADOType(elem)
+                    p=self.cmd.CreateParameter(name,adotype) # Name, Type, Direction, Size, Value
+                    if isStoredProcedureCall:
+                        p.Direction=adParamUnknown
+                    self.cmd.Parameters.Append(p)
                 if verbose > 2:
                        for i in range(self.cmd.Parameters.Count):
                             P = self.cmd.Parameters(i)
@@ -617,17 +623,17 @@ class Cursor:
                         else:
                             p.Value=elem
                         if verbose > 2:
-                            print 'Parameter %d type %d stored as: %s' % (parmIndx,p.Type,repr(p.Value))
+                            print 'Parameter %d type %s stored as: %s' % (parmIndx,adTypeNames.get(p.Type, 'unknown'),repr(p.Value))
             parmIndx = -2 # kludge to prevent exception handler picking out one parameter
-            
-            # ----- the actual SQL is executed here --- 
+
+            # ----- the actual SQL is executed here ---
             adoRetVal=self.cmd.Execute()
             # ----- ------------------------------- ---
         except (Exception), e:
             tbk = u'\n--ADODBAPI\n'
             if parmIndx >= 0:
-                tbk += u'-- Trying parameter %d = %s\n' \
-                    %(parmIndx, repr(parameters[parmIndx]))
+                tbk += u'-- Trying parameter %d, %s: %s\n' \
+                    %(parmIndx, adTypeNames.get(self.cmd.Parameters(parmIndx).Type, 'unknown'), repr(parameters[parmIndx]))
             tblist=(traceback.format_exception(sys.exc_type,
                                               sys.exc_value,
                                               sys.exc_traceback,
@@ -637,7 +643,7 @@ class Cursor:
                                %(operation,parameters)
             self._raiseCursorError(DatabaseError,tracebackhistory)
             return
-            
+
         rs=adoRetVal[0]
         ##self.rowcount=adoRetVal[1]    # NOTE: usually will be -1 for SELECT  :-(
         recs=adoRetVal[1]   #[begin Jorgensen ] ## but it breaks unit test
@@ -648,50 +654,50 @@ class Cursor:
         ##    except:
         ##        break
         self.rowcount=recs  #[end Jorgensen]
-        
+
         self._makeDescriptionFromRS(rs)
 
         if isStoredProcedureCall and parameters != None:
             return self._returnADOCommandParameters(self.cmd)
-        
+
     def execute(self, operation, parameters=None):
         """Prepare and execute a database operation (query or command).
-        
+
             Parameters may be provided as sequence or mapping and will be bound to variables in the operation.
             Variables are specified in a database-specific notation
-            (see the module's paramstyle attribute for details). [5] 
+            (see the module's paramstyle attribute for details). [5]
             A reference to the operation will be retained by the cursor.
             If the same operation object is passed in again, then the cursor
             can optimize its behavior. This is most effective for algorithms
-            where the same operation is used, but different parameters are bound to it (many times). 
+            where the same operation is used, but different parameters are bound to it (many times).
 
             For maximum efficiency when reusing an operation, it is best to use
             the setinputsizes() method to specify the parameter types and sizes ahead of time.
             It is legal for a parameter to not match the predefined information;
-            the implementation should compensate, possibly with a loss of efficiency. 
+            the implementation should compensate, possibly with a loss of efficiency.
 
             The parameters may also be specified as list of tuples to e.g. insert multiple rows in
-            a single operation, but this kind of usage is depreciated: executemany() should be used instead. 
+            a single operation, but this kind of usage is depreciated: executemany() should be used instead.
 
             Return values are not defined.
 
             [5] The module will use the __getitem__ method of the parameters object to map either positions
             (integers) or names (strings) to parameter values. This allows for both sequences and mappings
-            to be used as input. 
+            to be used as input.
             The term "bound" refers to the process of binding an input value to a database execution buffer.
             In practical terms, this means that the input value is directly used as a value in the operation.
             The client should not be required to "escape" the value so that it can be used -- the value
-            should be equal to the actual database value. 
+            should be equal to the actual database value.
         """
-        self.messages=[]                
+        self.messages=[]
         self._executeHelper(operation,False,parameters)
-            
+
     def executemany(self, operation, seq_of_parameters):
         """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters.
-        
-            Return values are not defined. 
+
+            Return values are not defined.
         """
-        self.messages=[]                
+        self.messages=[]
         totrecordcount = 0
         canCount=True
         for params in seq_of_parameters:
@@ -700,8 +706,8 @@ class Cursor:
                 canCount=False
             elif canCount:
                 totrecordcount+=self.rowcount
-                
-        if canCount:                  
+
+        if canCount:
             self.rowcount=totrecordcount
         else:
             self.rowcount=-1
@@ -736,41 +742,41 @@ class Cursor:
                 returnList.append([convertVariantToPython(r,type_code) for r in ado_results[i]])
                 i+=1
             return tuple(zip(*returnList))
-        
+
 
     def fetchone(self):
         """ Fetch the next row of a query result set, returning a single sequence,
             or None when no more data is available.
 
             An Error (or subclass) exception is raised if the previous call to executeXXX()
-            did not produce any result set or no call was issued yet. 
+            did not produce any result set or no call was issued yet.
         """
-        self.messages=[]                
+        self.messages=[]
         ret = self._fetch(1)
         if ret: # return record (not list of records)
             return ret[0]
         else:
             return ret # (in case of None)
 
-                    
+
     def fetchmany(self, size=None):
         """Fetch the next set of rows of a query result, returning a list of tuples. An empty sequence is returned when no more rows are available.
-        
+
         The number of rows to fetch per call is specified by the parameter.
         If it is not given, the cursor's arraysize determines the number of rows to be fetched.
         The method should try to fetch as many rows as indicated by the size parameter.
         If this is not possible due to the specified number of rows not being available,
-        fewer rows may be returned. 
+        fewer rows may be returned.
 
         An Error (or subclass) exception is raised if the previous call to executeXXX()
-        did not produce any result set or no call was issued yet. 
+        did not produce any result set or no call was issued yet.
 
         Note there are performance considerations involved with the size parameter.
         For optimal performance, it is usually best to use the arraysize attribute.
         If the size parameter is used, then it is best for it to retain the same value from
-        one fetchmany() call to the next. 
+        one fetchmany() call to the next.
         """
-        self.messages=[]                
+        self.messages=[]
         if size == None:
             size = self.arraysize
         return self._fetch(size)
@@ -779,23 +785,23 @@ class Cursor:
         """Fetch all (remaining) rows of a query result, returning them as a sequence of sequences (e.g. a list of tuples).
 
             Note that the cursor's arraysize attribute
-            can affect the performance of this operation. 
+            can affect the performance of this operation.
             An Error (or subclass) exception is raised if the previous call to executeXXX()
-            did not produce any result set or no call was issued yet. 
+            did not produce any result set or no call was issued yet.
         """
-        self.messages=[]                
+        self.messages=[]
         return self._fetch()
 
     def nextset(self):
-        """Make the cursor skip to the next available set, discarding any remaining rows from the current set. 
+        """Make the cursor skip to the next available set, discarding any remaining rows from the current set.
 
             If there are no more sets, the method returns None. Otherwise, it returns a true
-            value and subsequent calls to the fetch methods will return rows from the next result set. 
+            value and subsequent calls to the fetch methods will return rows from the next result set.
 
             An Error (or subclass) exception is raised if the previous call to executeXXX()
             did not produce any result set or no call was issued yet.
         """
-        self.messages=[]                
+        self.messages=[]
         if self.conn == None:
             self._raiseCursorError(Error,None)
             return
@@ -804,7 +810,7 @@ class Cursor:
             return
         else:
             try:                                                   #[begin 2.1 ekelund]
-                rsTuple=self.rs.NextRecordset()                    # 
+                rsTuple=self.rs.NextRecordset()                    #
             except pywintypes.com_error, exc:                      # return appropriate error
                 self._raiseCursorError(NotSupportedError, exc.args)#[end 2.1 ekelund]
             rs=rsTuple[0]
@@ -825,16 +831,16 @@ class Cursor:
 #string format. Similar problems exist for "Row ID" columns or large binary items (e.g. blobs or RAW columns).
 #This presents problems for Python since the parameters to the executeXXX() method are untyped.
 #When the database module sees a Python string object, it doesn't know if it should be bound as a simple CHAR column,
-#as a raw BINARY item, or as a DATE. 
+#as a raw BINARY item, or as a DATE.
 #
 #To overcome this problem, a module must provide the constructors defined below to create objects that can
 #hold special values. When passed to the cursor methods, the module can then detect the proper type of
-#the input parameter and bind it accordingly. 
+#the input parameter and bind it accordingly.
 
 #A Cursor Object's description attribute returns information about each of the result columns of a query.
 #The type_code must compare equal to one of Type Objects defined below. Type Objects may be equal to more than
 #one type code (e.g. DATETIME could be equal to the type codes for date, time and timestamp columns;
-#see the Implementation Hints below for details). 
+#see the Implementation Hints below for details).
 
 def Date(year,month,day):
     "This function constructs an object holding a date value. "
@@ -871,9 +877,9 @@ def Binary(aString):
 
 #v2.1 Cole comment out: BinaryType = Binary('a')
 
-#SQL NULL values are represented by the Python None singleton on input and output. 
+#SQL NULL values are represented by the Python None singleton on input and output.
 
-#Note: Usage of Unix ticks for database interfacing can cause troubles because of the limited date range they cover. 
+#Note: Usage of Unix ticks for database interfacing can cause troubles because of the limited date range they cover.
 
 def pyTypeToADOType(d):
     tp=type(d)
@@ -883,7 +889,7 @@ def pyTypeToADOType(d):
         if tp in dateconverter.types:
             return adDate
     raise DataError
-        
+
 def cvtCurrency((hi, lo), decimal=2): #special for type adCurrency
     if lo < 0:
         lo += (2L ** 32)
@@ -899,7 +905,7 @@ def cvtNumeric(variant):     #all v2.1 Cole
         europeVsUS=str(variant).replace(",",".")
         return decimal.Decimal(europeVsUS)
     except (ValueError,TypeError):
-        pass    
+        pass
 
 def cvtFloat(variant):
     try:
@@ -912,7 +918,7 @@ def cvtFloat(variant):
         europeVsUS=str(variant).replace(",",".")   #v2.1 Cole
         return float(europeVsUS)
     except (ValueError,TypeError):
-        pass    
+        pass
 
 def identity(x): return x
 
@@ -941,7 +947,7 @@ def convertVariantToPython(variant, adType):
     return variantConversions[adType](variant)
 
 
-adCmdText = 1 
+adCmdText = 1
 adCmdStoredProc = 4
 
 adParamInput                  =0x1        # from enum ParameterDirectionEnum
@@ -953,12 +959,12 @@ adParamUnknown                =0x0        # from enum ParameterDirectionEnum
 
 adStateClosed =0
 
-adFldMayBeNull=0x40 
+adFldMayBeNull=0x40
 
 adModeShareExclusive=0xc
 
 adXactCommitRetaining= 131072
-adXactAbortRetaining = 262144 
+adXactAbortRetaining = 262144
 
 
 adArray                       =0x2000     # from enum DataTypeEnum
@@ -1002,109 +1008,151 @@ adVarWChar                    =0xca       # from enum DataTypeEnum
 adVariant                     =0xc        # from enum DataTypeEnum
 adWChar                       =0x82       # from enum DataTypeEnum
 
+adTypeNames = {
+    adBSTR: 'adBSTR',
+    adBigInt: 'adBigInt',
+    adBinary: 'adBinary',
+    adBoolean: 'adBoolean',
+    adChapter: 'adChapter',
+    adChar: 'adChar',
+    adCurrency: 'adCurrency',
+    adDBDate: 'adDBDate',
+    adDBTime: 'adDBTime',
+    adDBTimeStamp: 'adDBTimeStamp',
+    adDate: 'adDate',
+    adDecimal: 'adDecimal',
+    adDouble: 'adDouble',
+    adEmpty: 'adEmpty',
+    adError: 'adError',
+    adFileTime: 'adFileTime',
+    adGUID: 'adGUID',
+    adIDispatch: 'adIDispatch',
+    adIUnknown: 'adIUnknown',
+    adInteger: 'adInteger',
+    adLongVarBinary: 'adLongVarBinary',
+    adLongVarChar: 'adLongVarChar',
+    adLongVarWChar: 'adLongVarWChar',
+    adNumeric: 'adNumeric',
+    adPropVariant: 'adPropVariant',
+    adSingle: 'adSingle',
+    adSmallInt: 'adSmallInt',
+    adTinyInt: 'adTinyInt',
+    adUnsignedBigInt: 'adUnsignedBigInt',
+    adUnsignedInt: 'adUnsignedInt',
+    adUnsignedSmallInt: 'adUnsignedSmallInt',
+    adUnsignedTinyInt: 'adUnsignedTinyInt',
+    adUserDefined: 'adUserDefined',
+    adVarBinary: 'adVarBinary',
+    adVarChar: 'adVarChar',
+    adVarNumeric: 'adVarNumeric',
+    adVarWChar: 'adVarWChar',
+    adVariant: 'adVariant',
+    adWChar: 'adWChar',
+   }
+
 #ado DataTypeEnum -- copy of above, here in decimal, sorted by value
-#adEmpty 0 Specifies no value (DBTYPE_EMPTY). 
-#adSmallInt 2 Indicates a two-byte signed integer (DBTYPE_I2). 
-#adInteger 3 Indicates a four-byte signed integer (DBTYPE_I4). 
-#adSingle 4 Indicates a single-precision floating-point value (DBTYPE_R4). 
-#adDouble 5 Indicates a double-precision floating-point value (DBTYPE_R8). 
-#adCurrency 6 Indicates a currency value (DBTYPE_CY). Currency is a fixed-point number with four digits to the right of the decimal point. It is stored in an eight-byte signed integer scaled by 10,000. 
-#adDate 7 Indicates a date value (DBTYPE_DATE). A date is stored as a double, the whole part of which is the number of days since December 30, 1899, and the fractional part of which is the fraction of a day. 
-#adBSTR 8 Indicates a null-terminated character string (Unicode) (DBTYPE_BSTR). 
-#adIDispatch 9 Indicates a pointer to an IDispatch interface on a COM object (DBTYPE_IDISPATCH). 
-#adError 10 Indicates a 32-bit error code (DBTYPE_ERROR). 
-#adBoolean 11 Indicates a boolean value (DBTYPE_BOOL). 
-#adVariant 12 Indicates an Automation Variant (DBTYPE_VARIANT). 
-#adIUnknown 13 Indicates a pointer to an IUnknown interface on a COM object (DBTYPE_IUNKNOWN). 
-#adDecimal 14 Indicates an exact numeric value with a fixed precision and scale (DBTYPE_DECIMAL). 
-#adTinyInt 16 Indicates a one-byte signed integer (DBTYPE_I1). 
-#adUnsignedTinyInt 17 Indicates a one-byte unsigned integer (DBTYPE_UI1). 
-#adUnsignedSmallInt 18 Indicates a two-byte unsigned integer (DBTYPE_UI2). 
-#adUnsignedInt 19 Indicates a four-byte unsigned integer (DBTYPE_UI4). 
-#adBigInt 20 Indicates an eight-byte signed integer (DBTYPE_I8). 
-#adUnsignedBigInt 21 Indicates an eight-byte unsigned integer (DBTYPE_UI8). 
-#adFileTime 64 Indicates a 64-bit value representing the number of 100-nanosecond intervals since January 1, 1601 (DBTYPE_FILETIME). 
-#adGUID 72 Indicates a globally unique identifier (GUID) (DBTYPE_GUID). 
-#adBinary 128 Indicates a binary value (DBTYPE_BYTES). 
-#adChar 129 Indicates a string value (DBTYPE_STR). 
-#adWChar 130 Indicates a null-terminated Unicode character string (DBTYPE_WSTR). 
-#adNumeric 131 Indicates an exact numeric value with a fixed precision and scale (DBTYPE_NUMERIC). adUserDefined 132 Indicates a user-defined variable (DBTYPE_UDT). 
-#adUserDefined 132 Indicates a user-defined variable (DBTYPE_UDT). 
-#adDBDate 133 Indicates a date value (yyyymmdd) (DBTYPE_DBDATE). 
-#adDBTime 134 Indicates a time value (hhmmss) (DBTYPE_DBTIME). 
-#adDBTimeStamp 135 Indicates a date/time stamp (yyyymmddhhmmss plus a fraction in billionths) (DBTYPE_DBTIMESTAMP). 
-#adChapter 136 Indicates a four-byte chapter value that identifies rows in a child rowset (DBTYPE_HCHAPTER). 
-#adPropVariant 138 Indicates an Automation PROPVARIANT (DBTYPE_PROP_VARIANT). 
-#adVarNumeric 139 Indicates a numeric value (Parameter object only). 
-#adVarChar 200 Indicates a string value (Parameter object only). 
-#adLongVarChar 201 Indicates a long string value (Parameter object only). 
-#adVarWChar 202 Indicates a null-terminated Unicode character string (Parameter object only). 
-#adLongVarWChar 203 Indicates a long null-terminated Unicode string value (Parameter object only). 
-#adVarBinary 204 Indicates a binary value (Parameter object only). 
-#adLongVarBinary 205 Indicates a long binary value (Parameter object only). 
-#adArray (Does not apply to ADOX.) 0x2000 A flag value, always combined with another data type constant, that indicates an array of that other data type.  
+#adEmpty 0 Specifies no value (DBTYPE_EMPTY).
+#adSmallInt 2 Indicates a two-byte signed integer (DBTYPE_I2).
+#adInteger 3 Indicates a four-byte signed integer (DBTYPE_I4).
+#adSingle 4 Indicates a single-precision floating-point value (DBTYPE_R4).
+#adDouble 5 Indicates a double-precision floating-point value (DBTYPE_R8).
+#adCurrency 6 Indicates a currency value (DBTYPE_CY). Currency is a fixed-point number with four digits to the right of the decimal point. It is stored in an eight-byte signed integer scaled by 10,000.
+#adDate 7 Indicates a date value (DBTYPE_DATE). A date is stored as a double, the whole part of which is the number of days since December 30, 1899, and the fractional part of which is the fraction of a day.
+#adBSTR 8 Indicates a null-terminated character string (Unicode) (DBTYPE_BSTR).
+#adIDispatch 9 Indicates a pointer to an IDispatch interface on a COM object (DBTYPE_IDISPATCH).
+#adError 10 Indicates a 32-bit error code (DBTYPE_ERROR).
+#adBoolean 11 Indicates a boolean value (DBTYPE_BOOL).
+#adVariant 12 Indicates an Automation Variant (DBTYPE_VARIANT).
+#adIUnknown 13 Indicates a pointer to an IUnknown interface on a COM object (DBTYPE_IUNKNOWN).
+#adDecimal 14 Indicates an exact numeric value with a fixed precision and scale (DBTYPE_DECIMAL).
+#adTinyInt 16 Indicates a one-byte signed integer (DBTYPE_I1).
+#adUnsignedTinyInt 17 Indicates a one-byte unsigned integer (DBTYPE_UI1).
+#adUnsignedSmallInt 18 Indicates a two-byte unsigned integer (DBTYPE_UI2).
+#adUnsignedInt 19 Indicates a four-byte unsigned integer (DBTYPE_UI4).
+#adBigInt 20 Indicates an eight-byte signed integer (DBTYPE_I8).
+#adUnsignedBigInt 21 Indicates an eight-byte unsigned integer (DBTYPE_UI8).
+#adFileTime 64 Indicates a 64-bit value representing the number of 100-nanosecond intervals since January 1, 1601 (DBTYPE_FILETIME).
+#adGUID 72 Indicates a globally unique identifier (GUID) (DBTYPE_GUID).
+#adBinary 128 Indicates a binary value (DBTYPE_BYTES).
+#adChar 129 Indicates a string value (DBTYPE_STR).
+#adWChar 130 Indicates a null-terminated Unicode character string (DBTYPE_WSTR).
+#adNumeric 131 Indicates an exact numeric value with a fixed precision and scale (DBTYPE_NUMERIC). adUserDefined 132 Indicates a user-defined variable (DBTYPE_UDT).
+#adUserDefined 132 Indicates a user-defined variable (DBTYPE_UDT).
+#adDBDate 133 Indicates a date value (yyyymmdd) (DBTYPE_DBDATE).
+#adDBTime 134 Indicates a time value (hhmmss) (DBTYPE_DBTIME).
+#adDBTimeStamp 135 Indicates a date/time stamp (yyyymmddhhmmss plus a fraction in billionths) (DBTYPE_DBTIMESTAMP).
+#adChapter 136 Indicates a four-byte chapter value that identifies rows in a child rowset (DBTYPE_HCHAPTER).
+#adPropVariant 138 Indicates an Automation PROPVARIANT (DBTYPE_PROP_VARIANT).
+#adVarNumeric 139 Indicates a numeric value (Parameter object only).
+#adVarChar 200 Indicates a string value (Parameter object only).
+#adLongVarChar 201 Indicates a long string value (Parameter object only).
+#adVarWChar 202 Indicates a null-terminated Unicode character string (Parameter object only).
+#adLongVarWChar 203 Indicates a long null-terminated Unicode string value (Parameter object only).
+#adVarBinary 204 Indicates a binary value (Parameter object only).
+#adLongVarBinary 205 Indicates a long binary value (Parameter object only).
+#adArray (Does not apply to ADOX.) 0x2000 A flag value, always combined with another data type constant, that indicates an array of that other data type.
 
 adoErrors= {
-    0xe7b      :'adErrBoundToCommand           ', 
-    0xe94      :'adErrCannotComplete           ', 
-    0xea4      :'adErrCantChangeConnection     ', 
-    0xc94      :'adErrCantChangeProvider       ', 
-    0xe8c      :'adErrCantConvertvalue         ', 
-    0xe8d      :'adErrCantCreate               ', 
-    0xea3      :'adErrCatalogNotSet            ', 
-    0xe8e      :'adErrColumnNotOnThisRow       ', 
-    0xd5d      :'adErrDataConversion           ', 
-    0xe89      :'adErrDataOverflow             ', 
-    0xe9a      :'adErrDelResOutOfScope         ', 
-    0xea6      :'adErrDenyNotSupported         ', 
-    0xea7      :'adErrDenyTypeNotSupported     ', 
-    0xcb3      :'adErrFeatureNotAvailable      ', 
-    0xea5      :'adErrFieldsUpdateFailed       ', 
-    0xc93      :'adErrIllegalOperation         ', 
-    0xcae      :'adErrInTransaction            ', 
-    0xe87      :'adErrIntegrityViolation       ', 
-    0xbb9      :'adErrInvalidArgument          ', 
-    0xe7d      :'adErrInvalidConnection        ', 
-    0xe7c      :'adErrInvalidParamInfo         ', 
-    0xe82      :'adErrInvalidTransaction       ', 
-    0xe91      :'adErrInvalidURL               ', 
-    0xcc1      :'adErrItemNotFound             ', 
-    0xbcd      :'adErrNoCurrentRecord          ', 
-    0xe83      :'adErrNotExecuting             ', 
-    0xe7e      :'adErrNotReentrant             ', 
-    0xe78      :'adErrObjectClosed             ', 
-    0xd27      :'adErrObjectInCollection       ', 
-    0xd5c      :'adErrObjectNotSet             ', 
-    0xe79      :'adErrObjectOpen               ', 
-    0xbba      :'adErrOpeningFile              ', 
-    0xe80      :'adErrOperationCancelled       ', 
-    0xe96      :'adErrOutOfSpace               ', 
-    0xe88      :'adErrPermissionDenied         ', 
-    0xe9e      :'adErrPropConflicting          ', 
-    0xe9b      :'adErrPropInvalidColumn        ', 
-    0xe9c      :'adErrPropInvalidOption        ', 
-    0xe9d      :'adErrPropInvalidValue         ', 
-    0xe9f      :'adErrPropNotAllSettable       ', 
-    0xea0      :'adErrPropNotSet               ', 
-    0xea1      :'adErrPropNotSettable          ', 
-    0xea2      :'adErrPropNotSupported         ', 
-    0xbb8      :'adErrProviderFailed           ', 
-    0xe7a      :'adErrProviderNotFound         ', 
-    0xbbb      :'adErrReadFile                 ', 
-    0xe93      :'adErrResourceExists           ', 
-    0xe92      :'adErrResourceLocked           ', 
-    0xe97      :'adErrResourceOutOfScope       ', 
-    0xe8a      :'adErrSchemaViolation          ', 
-    0xe8b      :'adErrSignMismatch             ', 
-    0xe81      :'adErrStillConnecting          ', 
-    0xe7f      :'adErrStillExecuting           ', 
-    0xe90      :'adErrTreePermissionDenied     ', 
-    0xe8f      :'adErrURLDoesNotExist          ', 
-    0xe99      :'adErrURLNamedRowDoesNotExist  ', 
-    0xe98      :'adErrUnavailable              ', 
-    0xe84      :'adErrUnsafeOperation          ', 
-    0xe95      :'adErrVolumeNotFound           ', 
-    0xbbc      :'adErrWriteFile                ' 
+    0xe7b      :'adErrBoundToCommand           ',
+    0xe94      :'adErrCannotComplete           ',
+    0xea4      :'adErrCantChangeConnection     ',
+    0xc94      :'adErrCantChangeProvider       ',
+    0xe8c      :'adErrCantConvertvalue         ',
+    0xe8d      :'adErrCantCreate               ',
+    0xea3      :'adErrCatalogNotSet            ',
+    0xe8e      :'adErrColumnNotOnThisRow       ',
+    0xd5d      :'adErrDataConversion           ',
+    0xe89      :'adErrDataOverflow             ',
+    0xe9a      :'adErrDelResOutOfScope         ',
+    0xea6      :'adErrDenyNotSupported         ',
+    0xea7      :'adErrDenyTypeNotSupported     ',
+    0xcb3      :'adErrFeatureNotAvailable      ',
+    0xea5      :'adErrFieldsUpdateFailed       ',
+    0xc93      :'adErrIllegalOperation         ',
+    0xcae      :'adErrInTransaction            ',
+    0xe87      :'adErrIntegrityViolation       ',
+    0xbb9      :'adErrInvalidArgument          ',
+    0xe7d      :'adErrInvalidConnection        ',
+    0xe7c      :'adErrInvalidParamInfo         ',
+    0xe82      :'adErrInvalidTransaction       ',
+    0xe91      :'adErrInvalidURL               ',
+    0xcc1      :'adErrItemNotFound             ',
+    0xbcd      :'adErrNoCurrentRecord          ',
+    0xe83      :'adErrNotExecuting             ',
+    0xe7e      :'adErrNotReentrant             ',
+    0xe78      :'adErrObjectClosed             ',
+    0xd27      :'adErrObjectInCollection       ',
+    0xd5c      :'adErrObjectNotSet             ',
+    0xe79      :'adErrObjectOpen               ',
+    0xbba      :'adErrOpeningFile              ',
+    0xe80      :'adErrOperationCancelled       ',
+    0xe96      :'adErrOutOfSpace               ',
+    0xe88      :'adErrPermissionDenied         ',
+    0xe9e      :'adErrPropConflicting          ',
+    0xe9b      :'adErrPropInvalidColumn        ',
+    0xe9c      :'adErrPropInvalidOption        ',
+    0xe9d      :'adErrPropInvalidValue         ',
+    0xe9f      :'adErrPropNotAllSettable       ',
+    0xea0      :'adErrPropNotSet               ',
+    0xea1      :'adErrPropNotSettable          ',
+    0xea2      :'adErrPropNotSupported         ',
+    0xbb8      :'adErrProviderFailed           ',
+    0xe7a      :'adErrProviderNotFound         ',
+    0xbbb      :'adErrReadFile                 ',
+    0xe93      :'adErrResourceExists           ',
+    0xe92      :'adErrResourceLocked           ',
+    0xe97      :'adErrResourceOutOfScope       ',
+    0xe8a      :'adErrSchemaViolation          ',
+    0xe8b      :'adErrSignMismatch             ',
+    0xe81      :'adErrStillConnecting          ',
+    0xe7f      :'adErrStillExecuting           ',
+    0xe90      :'adErrTreePermissionDenied     ',
+    0xe8f      :'adErrURLDoesNotExist          ',
+    0xe99      :'adErrURLNamedRowDoesNotExist  ',
+    0xe98      :'adErrUnavailable              ',
+    0xe84      :'adErrUnsafeOperation          ',
+    0xe95      :'adErrVolumeNotFound           ',
+    0xbbc      :'adErrWriteFile                '
     }
 
 
@@ -1125,16 +1173,16 @@ adoIntegerTypes=(adInteger,adSmallInt,adTinyInt,adUnsignedInt,
                  adBoolean,adError) #max 32 bits
 adoRowIdTypes=(adChapter,)          #v2.1 Rose
 adoLongTypes=(adBigInt,adFileTime,adUnsignedBigInt)
-adoExactNumericTypes=(adDecimal,adNumeric,adVarNumeric,adCurrency)      #v2.1 Cole     
+adoExactNumericTypes=(adDecimal,adNumeric,adVarNumeric,adCurrency)      #v2.1 Cole
 adoApproximateNumericTypes=(adDouble,adSingle)                          #v2.1 Cole
 adoStringTypes=(adBSTR,adChar,adLongVarChar,adLongVarWChar,
                 adVarChar,adVarWChar,adWChar,adGUID)
 adoBinaryTypes=(adBinary,adLongVarBinary,adVarBinary)
-adoDateTimeTypes=(adDBTime, adDBTimeStamp, adDate, adDBDate)            
+adoDateTimeTypes=(adDBTime, adDBTimeStamp, adDate, adDBDate)
 adoRemainingTypes=(adEmpty,adIDispatch,adIUnknown,
                    adPropVariant,adArray,adUserDefined,
                    adVariant)
-                   
+
 """This type object is used to describe columns in a database that are string-based (e.g. CHAR). """
 STRING   = DBAPITypeObject(adoStringTypes)
 
@@ -1151,7 +1199,7 @@ DATETIME = DBAPITypeObject(adoDateTimeTypes)
 """This type object is used to describe the "Row ID" column in a database. """
 ROWID    = DBAPITypeObject(adoRowIdTypes)
 
-typeMap= { 
+typeMap= {
            types.BufferType: adBinary,
            types.FloatType: adNumeric,
            types.IntType: adInteger,
