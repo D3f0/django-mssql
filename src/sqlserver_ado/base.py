@@ -4,14 +4,9 @@ ADO MSSQL database backend for Django.
 Includes adodb_django, based on  adodbapi 2.1: http://adodbapi.sourceforge.net/
 """
 
-from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations, util
-try:
-    import adodb_django as Database
-except ImportError, e:
-    from django.core.exceptions import ImproperlyConfigured
-    raise ImproperlyConfigured("Error loading adodbapi module: %s" % e)
+from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations
+import adodb_django as Database
 
-import datetime
 import re
     
 DatabaseError = Database.DatabaseError
@@ -47,16 +42,6 @@ class CursorWrapper(Database.Cursor):
             sql = (' TOP %s ' % limit).join(sql.split(None, 1))
 
         Database.Cursor._executeHelper(self, sql, isStoredProcedureCall, parameters)
-
-origCVtoP = Database.convertVariantToPython
-def variantToPython(variant, adType):
-    if type(variant) == bool and adType == 11:
-        return variant  # bool not 1/0
-    res = origCVtoP(variant, adType)
-    if type(res) == float and str(res)[-2:] == ".0":
-        return int(res) # If float but int, then int.
-    return res
-Database.convertVariantToPython = variantToPython
 
 class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True

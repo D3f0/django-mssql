@@ -28,6 +28,7 @@
         - Parameters are generated incorrectly for use in UDFs.
     * DateObjectFromCOMDate always returns a DateTime, as this is what Django template
     	filters expect from a DateTimeField
+	* Inlined Django monkeypatching of ConvertVariantToPython
 """
 
 import string
@@ -944,8 +945,20 @@ class VariantConversionMap(dict):
 def convertVariantToPython(variant, adType):
     if variant is None:
         return None
-    return variantConversions[adType](variant)
 
+    # Don't convert booleans to 1/0 ints.	
+    if type(variant) == bool and adType == adBoolean:
+        return variant  # bool not 1/0
+
+    res = variantConversions[adType](variant)
+    
+    # If the type is flaot, but there is no decimal part,
+    # then return an integer. 
+    # --Adam V: Why does Django want this?
+    if type(res) == float and str(res)[-2:] == ".0":
+        return int(res) # If float but int, then int.
+
+    return res
 
 adCmdText = 1
 adCmdStoredProc = 4
