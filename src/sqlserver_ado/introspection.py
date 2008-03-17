@@ -5,7 +5,7 @@ def get_table_list(cursor):
 
 def get_table_description(cursor, table_name):
     "Returns a description of the table, with the DB-API cursor.description interface."
-    cursor.execute("SELECT * FROM %s where 1=0" % (table_name))
+    cursor.execute("SELECT * FROM [%s] where 1=0" % (table_name))
     return cursor.description
 
 def _name_to_index(cursor, table_name):
@@ -18,7 +18,8 @@ def _name_to_index(cursor, table_name):
 def get_relations(cursor, table_name):
     source_field_dict = _name_to_index(cursor, table_name)
     
-    sql = '''SELECT
+    sql = '''
+SELECT
 COLUMN_NAME = FK_COLS.COLUMN_NAME,
 REFERENCED_TABLE_NAME = PK.TABLE_NAME,
 REFERENCED_COLUMN_NAME = PK_COLS.COLUMN_NAME
@@ -41,7 +42,7 @@ JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE FK_COLS
 JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE PK_COLS 
 	ON PK.CONSTRAINT_NAME = PK_COLS.CONSTRAINT_NAME
 where
-	FK.TABLE_NAME = %s'''
+	FK.TABLE_NAME = [%s]'''
     cursor.execute(sql,[table_name])
     relations = cursor.fetchall()
     relation_map = dict()
@@ -71,7 +72,7 @@ from
 	join sys.columns C on C.object_id = T.object_id and C.column_id = IC.column_id
 	join sys.indexes Ix on Ix.object_id = T.object_id and Ix.index_id = IC.index_id
 where
-	T.name = %s
+	T.name = [%s]
 	and (Ix.is_unique=1 or Ix.is_primary_key=1)
     -- Omit multi-column keys
 	and not exists (
