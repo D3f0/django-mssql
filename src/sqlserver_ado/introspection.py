@@ -42,7 +42,7 @@ JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE FK_COLS
 JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE PK_COLS 
 	ON PK.CONSTRAINT_NAME = PK_COLS.CONSTRAINT_NAME
 where
-	FK.TABLE_NAME = [%s]'''
+	FK.TABLE_NAME = %s'''
     cursor.execute(sql,[table_name])
     relations = cursor.fetchall()
     relation_map = dict()
@@ -72,7 +72,7 @@ from
 	join sys.columns C on C.object_id = T.object_id and C.column_id = IC.column_id
 	join sys.indexes Ix on Ix.object_id = T.object_id and Ix.index_id = IC.index_id
 where
-	T.name = [%s]
+	T.name = %s
 	and (Ix.is_unique=1 or Ix.is_primary_key=1)
     -- Omit multi-column keys
 	and not exists (
