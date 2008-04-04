@@ -46,6 +46,7 @@ class CursorWrapper(Database.Cursor):
 class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True
 
+
 class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, field_name):
         return "DATEPART(%s, %s)" % (lookup_type, field_name)

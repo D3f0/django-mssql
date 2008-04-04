@@ -3,8 +3,8 @@ DATA_TYPES = {
     'BooleanField':      'bit',
     'CharField':         'varchar(%(max_length)s)',
     'CommaSeparatedIntegerField': 'varchar(%(max_length)s)',
-    'DateField':         'smalldatetime',
-    'DateTimeField':     'smalldatetime',
+    'DateField':         'datetime',
+    'DateTimeField':     'datetime',
     'DecimalField':      'numeric(%(max_digits)s, %(decimal_places)s)',
     'FileField':         'varchar(%(max_length)s)',
     'FilePathField':     'varchar(%(max_length)s)',
@@ -19,7 +19,7 @@ DATA_TYPES = {
     'PositiveSmallIntegerField': 'smallint CONSTRAINT [CK_smallint_pos_%(column)s] CHECK ([%(column)s] > 0)',
     'SlugField':         'varchar(%(max_length)s)',
     'SmallIntegerField': 'smallint',
-    'TextField':         'text',
+    'TextField':         'varchar(max)', # SQL Server 2005 and up!
     'TimeField':         'time',
-    'USStateField':      'varchar(2)',
+    'USStateField':      'char(2)',
 }
