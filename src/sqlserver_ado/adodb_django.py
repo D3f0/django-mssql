@@ -45,7 +45,7 @@ import traceback
 import datetime
 import re
 
-rx_datetime=re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
+rx_datetime = re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
 
 try:
     import decimal
@@ -84,13 +84,13 @@ version = __doc__.split('-',2)[0]
 # 3... = Really really on for real
 verbose = False
 
-defaultIsolationLevel=adXactReadCommitted
+defaultIsolationLevel = adXactReadCommitted
 #  Set defaultIsolationLevel on module level before creating the connection.
 #   It may be one of "adXact..." consts.
 #   if you simply "import adodbapi", you'll say:
 #   "adodbapi.adodbapi.defaultIsolationLevel=adodbapi.adodbapi.adXactBrowse", for example
 
-defaultCursorLocation=adUseServer
+defaultCursorLocation = adUseServer
 #  Set defaultCursorLocation on module level before creating the connection.
 #   It may be one of the "adUse..." consts.
 
@@ -146,9 +146,9 @@ def _logger(message, log_level=1):
 def connect(connstr, timeout=30):
     "Connection string as in the ADO documentation, SQL timeout in seconds"
     pythoncom.CoInitialize()
-    conn=win32com.client.Dispatch('ADODB.Connection')
-    conn.CommandTimeout=timeout
-    conn.ConnectionString=connstr
+    conn = win32com.client.Dispatch('ADODB.Connection')
+    conn.CommandTimeout = timeout
+    conn.ConnectionString = connstr
 
     _logger('%s attempting: "%s"' % (version,connstr))
     try:
@@ -266,19 +266,14 @@ class Connection(object):
         return Cursor(self)
 
     def printADOerrors(self):
-        error_count = self.adoConn.Errors.Count
-        print 'ADO Errors:(%i)' % error_count
-        for i in range(error_count):
-            e = self.adoConn.Errors(i)
+        print 'ADO Errors:(%i)' % self.adoConn.Errors.Count
+        for e in self.adoConn.Errors:
             print 'Description: %s' % e.Description
             print 'Number: %s ' % e.Number
-            try:
-                print 'Number constant:' % adoErrors[e.Number]
-            except:
-                pass
-            print 'Source: %s' %e.Source
-            print 'NativeError: %s' %e.NativeError
-            print 'SQL State: %s' %e.SQLState
+            print 'Number constant:' % adoErrors.get(e.Number, "unknown")
+            print 'Source: %s' % e.Source
+            print 'NativeError: %s' % e.NativeError
+            print 'SQL State: %s' % e.SQLState
             if e.Number == ado_error_TIMEOUT:
                 print ' Error means that the Query timed out.\n Try using adodbpi.connect(constr,timeout=Nseconds)'
 
@@ -292,20 +287,22 @@ class Connection(object):
 
 def _log_parameters(parameters):
     """Log parameters for debugging queries."""
-    for i in range(parameters.Count):
-        param = parameters(i)
+    for param in parameters:
         print 'adodbapi parameter attributes before=', param.Name, param.Type, param.Direction, param.Size
 
 def _findReturnValueIndex(isStoredProcedureCall, parameters):
 	if not isStoredProcedureCall:
 		return -1
 		
-	if parameters.Count != len(parameters):
-		for i in range(parameters.Count):
-			if parameters(i).Direction == adParamReturnValue:
-				return i
-	return -1;
-        
+	if parameters.Count == len(parameters):
+		return -1
+		
+	for i,param in enumerate(parameters):
+		if param.Direction == adParamReturnValue:
+			return i
+			
+	return -1
+
 class Cursor(object):
     description = None
 ##    This read-only attribute is a sequence of 7-item sequences.
@@ -748,15 +745,14 @@ def convertVariantToPython(variant, adType):
     if type(variant) == bool and adType == adBoolean:
         return variant
 
-    res = variantConversions[adType](variant)
+    converted = variantConversions[adType](variant)
     
-    # If the type is float, but there is no decimal part,
-    # then return an integer. 
+    # If the type is float, but there is no decimal part, then return an integer. 
     # --Adam V: Why does Django want this?
-    if type(res) == float and str(res)[-2:] == ".0":
-        return int(res) # If float but int, then int.
+    if type(converted) == float and str(converted)[-2:] == ".0":
+        return int(converted) # If float but int, then int.
 
-    return res
+    return converted
 
 
 class DBAPITypeObject:
@@ -817,25 +813,6 @@ def datetimeFromCOMDate(comDate):
 
 def identity(x): return x
 
-class VariantConversionMap(dict):
-    def __init__(self, aDict):
-        for k, v in aDict.iteritems():
-            self[k] = v # we must call __setitem__
-
-    def __setitem__(self, adoType, cvtFn):
-        "don't make adoType a string :-)"
-        try: # user passed us a tuple, set them individually
-           for type in adoType:
-               dict.__setitem__(self, type, cvtFn)
-        except TypeError: # single value
-           dict.__setitem__(self, adoType, cvtFn)
-
-    def __getitem__(self, fromType):
-        try:
-            return dict.__getitem__(self, fromType)
-        except KeyError:
-            return identity
-
 mapPythonTypesToAdoTypes = {
 	buffer: adBinary,
 	float: adNumeric,
@@ -851,10 +828,22 @@ mapPythonTypesToAdoTypes = {
 	datetime.time: adDate,
 }
 
+class VariantConversionMap(object):
+    def __init__(self, mapping):
+    	self.storage = dict()
+    	
+    	# mapping is a dict of tuple(ado Type) => convert function
+    	for adoType_list, convert_function in mapping.iteritems():
+    		for adoType in adoType_list:
+    			self.storage[adoType] = convert_function
+
+    def __getitem__(self, key):
+    	return self.storage.get(key, identity)
+
 variantConversions = VariantConversionMap({
     adoDateTimeTypes : datetimeFromCOMDate,
     adoApproximateNumericTypes: cvtFloat,
-    adCurrency: cvtCurrency,
+    (adCurrency,): cvtCurrency,
     adoExactNumericTypes: identity, # use cvtNumeric to force decimal rather than unicode
     adoLongTypes : long,
     adoIntegerTypes: int,
