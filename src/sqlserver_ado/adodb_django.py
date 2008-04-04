@@ -29,8 +29,6 @@
     * DateObjectFromCOMDate always returns a DateTime, as this is what Django template
     	filters expect from a DateTimeField
 	* Inlined Django monkeypatching of ConvertVariantToPython
-	--
-	* Removed remnants of mx support, simplifying the datetime conversion code a bit.
 	
 	Python's DB-API 2.0:
 	http://www.python.org/dev/peps/pep-0249/
@@ -42,7 +40,6 @@ import string
 import exceptions
 import time
 import calendar
-import types
 import sys
 import traceback
 import datetime
@@ -98,8 +95,6 @@ defaultCursorLocation=adUseServer
 #   It may be one of the "adUse..." consts.
 
 
-_python_datetime_types = (type(datetime.date), type(datetime.datetime), type(datetime.time))
-
 def standardErrorHandler(connection,cursor,errorclass,errorvalue):
     err = (errorclass,errorvalue)
     connection.messages.append(err)
@@ -122,7 +117,6 @@ class InterfaceError(Error):
         s = "InterfaceError"
         if self.inner_exception is not None:
             s += "\n" + str(self.inner_exception)
-
         return s
 
 class DatabaseError(Error):
@@ -167,24 +161,25 @@ def connect(connstr, timeout=30):
 class Connection(object):
     def __init__(self,adoConn):
         self.adoConn = adoConn
-        self.supportsTransactions = False
-        
-        for indx in range(adoConn.Properties.Count):
-            if adoConn.Properties(indx).Name == 'Transaction DDL' \
-            and adoConn.Properties(indx).Value != 0:
-                self.supportsTransactions=True
-
+        self.errorhandler = None
+        self.messages = []
         self.adoConn.CursorLocation = defaultCursorLocation
         
-        if self.supportsTransactions:
-            self.adoConn.IsolationLevel=defaultIsolationLevel
-            self.adoConn.BeginTrans() #Disables autocommit
+        self._determineTransactionSupport()
 
-        self.errorhandler=None
-        self.messages=[]
+        if self.supportsTransactions:
+            self.adoConn.IsolationLevel = defaultIsolationLevel
+            self.adoConn.BeginTrans() #Disables autocommit
 
         if verbose:
             print 'adodbapi New connection at %X' % id(self)
+            
+    def _determineTransactionSupport(self):
+        self.supportsTransactions = False
+        for prop in self.adoConn.Properties:
+            if prop.Name == 'Transaction DDL':
+                self.supportsTransactions = (prop.Value > 0)
+                return
 
     def _raiseConnectionError(self,errorclass,errorvalue):
         eh = self.errorhandler
@@ -305,7 +300,7 @@ def _findReturnValueIndex(isStoredProcedureCall, parameters):
 	if not isStoredProcedureCall:
 		return -1
 		
-	if parameters.Count <> len(parameters):
+	if parameters.Count != len(parameters):
 		for i in range(parameters.Count):
 			if parameters(i).Direction == adParamReturnValue:
 				return i
@@ -334,7 +329,7 @@ class Cursor(object):
 ##    but are free to interact with the database a single row at a time.
 ##    It may also be used in the implementation of executemany().
 
-    def __init__(self,connection):
+    def __init__(self, connection):
         self.messages = []
         self.conn = connection
         self.rs = None
@@ -394,10 +389,11 @@ class Cursor(object):
         # Switching to client-side cursors will force a static cursor,
         # and rowcount will then be set accurately [Cole]
         self.rowcount = -1
-        self.rs=rs
-        self.description=[]
+        self.rs = rs
+        self.description = []
+        
         for i in range(self.rs.Fields.Count):
-            f=rs.Fields(i)
+            f = rs.Fields(i)
             
             display_size = None            
             if not(self.rs.EOF or self.rs.BOF):
@@ -431,7 +427,7 @@ class Cursor(object):
         convertedAllParameters = False
         
         try:
-            self.cmd=win32com.client.Dispatch("ADODB.Command")
+            self.cmd = win32com.client.Dispatch("ADODB.Command")
             self.cmd.ActiveConnection = self.conn.adoConn
             self.cmd.CommandTimeout = self.conn.adoConn.CommandTimeout
             self.cmd.CommandText=operation
@@ -466,29 +462,34 @@ class Cursor(object):
                     if p.Direction not in [adParamInput, adParamInputOutput, adParamUnknown]:
                     	continue
 
-                    python_type = type(elem)
-                    if python_type in _python_datetime_types:
+                    if isinstance(elem, (datetime.date, datetime.datetime, datetime.time)):
                         #Known problem with JET Provider. Date can not be specified as a COM date.
                         # See for example:
                         # http://support.microsoft.com/default.aspx?scid=kb%3ben-us%3b284843
                         # One workaround is to provide the date as a string in the format 'YYYY-MM-dd'
                         s = elem.isoformat()
+                        # Hack to trim microseconds on iso dates down to 3 decimals
+                        try: # ... only if parameter is a datetime string
+                            s = rx_datetime.findall(s)[0]
+                        except: pass
                         p.Value = s
                         p.Size = len(s)
                         
-                    elif python_type in types.StringTypes:
-                        p.Value = elem
+                    elif isinstance(elem, basestring):
+                        s = elem
+                        # Hack to trim microseconds on iso dates down to 3 decimals
                         try: # ... only if parameter is a datetime string
-                            p.Value=rx_datetime.findall(p.Value)[0]
-                        except:
-                            pass
-                        L = len(elem)
+                            s = rx_datetime.findall(s)[0]
+                        except: pass
+                        
+                        p.Value = s
+                        string_len = len(s)
                         
                         #v2.1 Cole something does not like p.Size as Zero
-                        if L>0:
-                            p.Size = L
-                            
-                    elif python_type == types.BufferType:
+                        if string_len > 0:
+                            p.Size = string_len
+
+                    elif isinstance(elem, buffer):
                         p.Size = len(elem)
                         p.AppendChunk(elem)
                         
@@ -705,13 +706,10 @@ def Binary(aString):
 
 
 def pyTypeToADOType(data):
-    python_type = type(data)
     try:
-        return typeMap[python_type]
+        return mapPythonTypesToAdoTypes[type(data)]
     except KeyError:
-        if python_type in _python_datetime_types:
-            return adDate
-    raise DataError
+	    raise DataError
 
 def cvtCurrency((hi, lo), decimal=2): #special for type adCurrency
     if lo < 0:
@@ -804,27 +802,15 @@ DATETIME = DBAPITypeObject(adoDateTimeTypes)
 """This type object is used to describe the "Row ID" column in a database. """
 ROWID    = DBAPITypeObject(adoRowIdTypes)
 
-typeMap= {
-	types.BufferType: adBinary,
-	types.FloatType: adNumeric,
-	types.IntType: adInteger,
-	types.LongType: adBigInt,
-	types.StringType: adBSTR,
-	types.NoneType: adEmpty,
-	types.UnicodeType: adBSTR,
-	types.BooleanType:adBoolean,
-	type(decimal.Decimal): adNumeric,
-}
-
 # Used for COM to Python date conversions.
 _ordinal_1899_12_31 = datetime.date(1899,12,31).toordinal()-1
 
 def datetimeFromCOMDate(comDate):
 	fComDate = float(comDate)
-	integerPart = int(fComDate)
-	fraction_of_day = abs(fComDate-integerPart)
+	day_count = int(fComDate)
+	fraction_of_day = abs(fComDate-day_count)
 	
-	datetime_value = datetime.datetime.fromordinal(integerPart + _ordinal_1899_12_31)
+	datetime_value = datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31)
 	# 86400000 = 24*60*60*1000 = milliseconds per day
 	datetime_value = datetime_value + datetime.timedelta(milliseconds=fraction_of_day*86400000)
 	return datetime_value
@@ -849,6 +835,21 @@ class VariantConversionMap(dict):
             return dict.__getitem__(self, fromType)
         except KeyError:
             return identity
+
+mapPythonTypesToAdoTypes = {
+	buffer: adBinary,
+	float: adNumeric,
+	int: adInteger,
+	long: adBigInt,
+	str: adBSTR,
+	unicode: adBSTR,
+	type(None): adEmpty,
+	bool: adBoolean,
+	decimal.Decimal: adNumeric,
+	datetime.date: adDate,
+	datetime.datetime: adDate,
+	datetime.time: adDate,
+}
 
 variantConversions = VariantConversionMap({
     adoDateTimeTypes : datetimeFromCOMDate,
