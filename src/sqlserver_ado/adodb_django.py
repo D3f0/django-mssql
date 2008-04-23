@@ -103,11 +103,8 @@ def standardErrorHandler(connection,cursor,errorclass,errorvalue):
     raise errorclass(errorvalue)
 
 
-class Error(exceptions.StandardError):
-    pass
-
-class Warning(exceptions.StandardError):
-    pass
+class Error(exceptions.StandardError): pass
+class Warning(exceptions.StandardError): pass
 
 class InterfaceError(Error):
     def __init__(self, inner_exception=None):
@@ -119,26 +116,28 @@ class InterfaceError(Error):
             s += "\n" + str(self.inner_exception)
         return s
 
-class DatabaseError(Error):
-    pass
+class DatabaseError(Error): pass
+class InternalError(DatabaseError): pass
+class OperationalError(DatabaseError): pass
+class ProgrammingError(DatabaseError): pass
+class IntegrityError(DatabaseError): pass
+class DataError(DatabaseError): pass
+class NotSupportedError(DatabaseError): pass
 
-class InternalError(DatabaseError):
-    pass
 
-class OperationalError(DatabaseError):
-    pass
+class DBAPITypeObject:
+  def __init__(self,valuesTuple):
+    self.values = valuesTuple
 
-class ProgrammingError(DatabaseError):
-    pass
+  def __cmp__(self,other):
+    if other in self.values:
+      return 0
+      
+    if other < self.values:
+      return 1
 
-class IntegrityError(DatabaseError):
-    pass
+    return -1
 
-class DataError(DatabaseError):
-    pass
-
-class NotSupportedError(DatabaseError):
-    pass
 
 def _logger(message, log_level=1):
 	if verbose and verbose>=log_level: print message
@@ -360,8 +359,7 @@ class Cursor(object):
 
     def _returnADOCommandParameters(self,adoCommand):
         retLst = []
-        for i in range(adoCommand.Parameters.Count):
-            p = adoCommand.Parameters(i)
+        for p in adoCommand.Parameters:
             if verbose > 2:
                 print 'return', p.Name, p.Type, p.Direction, repr(p.Value)
             pyObject = convertVariantToPython(p.Value,p.Type)
@@ -473,6 +471,7 @@ class Cursor(object):
                         p.Size = len(s)
                         
                     elif isinstance(elem, basestring):
+                    	
                         s = elem
                         # Hack to trim microseconds on iso dates down to 3 decimals
                         try: # ... only if parameter is a datetime string
@@ -715,27 +714,21 @@ def cvtCurrency((hi, lo), decimal=2): #special for type adCurrency
     return decimal.Decimal((long(hi) << 32) + lo)/decimal.Decimal(1000)
 
 def cvtNumeric(variant):
-    try:
-        return decimal.Decimal(variant)
-    except (ValueError,TypeError):
-        pass
-    try:
-        europeVsUS=str(variant).replace(",",".")
-        return decimal.Decimal(europeVsUS)
-    except (ValueError,TypeError):
-        pass
+	return _convertNumberWithCulture(variant, decimal.Decimal)
 
 def cvtFloat(variant):
+	return _convertNumberWithCulture(variant, float)
+        
+def _convertNumberWithCulture(variant, f):
     try:
-        return float(variant)
-    except (ValueError,TypeError):
-        pass
+        return f(variant)
+    except (ValueError,TypeError): pass
 
     try:
         europeVsUS = str(variant).replace(",",".")
-        return float(europeVsUS)
-    except (ValueError,TypeError):
-        pass
+        return f(europeVsUS)
+    except (ValueError,TypeError): pass
+	
 
 def convertVariantToPython(variant, adType):
     if variant is None:
@@ -755,30 +748,18 @@ def convertVariantToPython(variant, adType):
     return converted
 
 
-class DBAPITypeObject:
-  def __init__(self,valuesTuple):
-    self.values = valuesTuple
-
-  def __cmp__(self,other):
-    if other in self.values:
-      return 0
-    if other < self.values:
-      return 1
-    else:
-      return -1
-
-adoIntegerTypes=(adInteger,adSmallInt,adTinyInt,adUnsignedInt,
+adoIntegerTypes = (adInteger,adSmallInt,adTinyInt,adUnsignedInt,
                  adUnsignedSmallInt,adUnsignedTinyInt,
                  adBoolean,adError)
-adoRowIdTypes=(adChapter,)
-adoLongTypes=(adBigInt,adFileTime,adUnsignedBigInt)
-adoExactNumericTypes=(adDecimal,adNumeric,adVarNumeric,adCurrency)
-adoApproximateNumericTypes=(adDouble,adSingle)
-adoStringTypes=(adBSTR,adChar,adLongVarChar,adLongVarWChar,
+adoRowIdTypes = (adChapter,)
+adoLongTypes = (adBigInt,adFileTime,adUnsignedBigInt)
+adoExactNumericTypes = (adDecimal,adNumeric,adVarNumeric,adCurrency)
+adoApproximateNumericTypes = (adDouble,adSingle)
+adoStringTypes = (adBSTR,adChar,adLongVarChar,adLongVarWChar,
                 adVarChar,adVarWChar,adWChar,adGUID)
-adoBinaryTypes=(adBinary,adLongVarBinary,adVarBinary)
-adoDateTimeTypes=(adDBTime, adDBTimeStamp, adDate, adDBDate)
-adoRemainingTypes=(adEmpty,adIDispatch,adIUnknown,
+adoBinaryTypes = (adBinary,adLongVarBinary,adVarBinary)
+adoDateTimeTypes = (adDBTime, adDBTimeStamp, adDate, adDBDate)
+adoRemainingTypes = (adEmpty,adIDispatch,adIUnknown,
                    adPropVariant,adArray,adUserDefined,
                    adVariant)
 
@@ -789,8 +770,7 @@ STRING   = DBAPITypeObject(adoStringTypes)
 BINARY   = DBAPITypeObject(adoBinaryTypes)
 
 """This type object is used to describe numeric columns in a database. """
-NUMBER   = DBAPITypeObject(adoIntegerTypes + adoLongTypes + \
-                           adoExactNumericTypes + adoApproximateNumericTypes)
+NUMBER   = DBAPITypeObject(adoIntegerTypes + adoLongTypes + adoExactNumericTypes + adoApproximateNumericTypes)
 
 """This type object is used to describe date/time columns in a database. """
 DATETIME = DBAPITypeObject(adoDateTimeTypes)
@@ -820,22 +800,26 @@ mapPythonTypesToAdoTypes = {
 	long: adBigInt,
 	str: adBSTR,
 	unicode: adBSTR,
-	type(None): adEmpty,
 	bool: adBoolean,
 	decimal.Decimal: adNumeric,
 	datetime.date: adDate,
 	datetime.datetime: adDate,
 	datetime.time: adDate,
+	
+	# This is causing problems when "adEmpty", as that's not a SQL command parameter type.
+	# So, fake a type that's more or less convertable.
+	# (Alternate approach would be to replace ? in query with literal NULLs...)
+	type(None): adBSTR,
 }
 
 class VariantConversionMap(object):
     def __init__(self, mapping):
     	self.storage = dict()
     	
-    	# mapping is a dict of tuple(ado Type) => convert function
-    	for adoType_list, convert_function in mapping.iteritems():
+    	# mapping is a dict of: tuple(ado Type) => conversion function
+    	for adoType_list, conversion_function in mapping.iteritems():
     		for adoType in adoType_list:
-    			self.storage[adoType] = convert_function
+    			self.storage[adoType] = conversion_function
 
     def __getitem__(self, key):
     	return self.storage.get(key, identity)
