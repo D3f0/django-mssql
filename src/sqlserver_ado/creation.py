@@ -20,6 +20,6 @@ DATA_TYPES = {
     'SlugField':         'nvarchar(%(max_length)s)',
     'SmallIntegerField': 'smallint',
     'TextField':         'nvarchar(max)', # SQL Server 2005 and up!
-    'TimeField':         'time',
+    'TimeField':         'datetime',
     'USStateField':      'nchar(2)',
 }

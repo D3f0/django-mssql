@@ -1,5 +1,4 @@
 from myapp.models import *
 
-print list(TableNullText.objects.all())
-print list(TableNullInteger.objects.all())
-print list(TableNullDate.objects.all())
+for klass in (TableNullText, TableNullInteger, TableNullDateTime, TableNullDate, TableNullTime, TableNullBoolean, TableNullDecimal):
+	print list(klass.objects.all())
