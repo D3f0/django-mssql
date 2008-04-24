@@ -156,6 +156,13 @@ def connect(connstr, timeout=30):
         raise DatabaseError(e)
     return Connection(conn)
 
+def format_parameters(parameters):
+	"""Formats a collection of ADO Command Parameters"""
+	desc = list()
+	for param in parameters:
+		desc.append("Name: %s, Type: %s, Size: %s" % (param.Name, adTypeNames.get(param.Type, str(param.Type)+'(unknown type)'), param.Size))
+		
+	return '[' + ', '.join(desc) + ']'
 
 class Connection(object):
     def __init__(self,adoConn):
@@ -468,25 +475,20 @@ class Cursor(object):
                             s = rx_datetime.findall(s)[0]
                         except: pass
                         p.Value = s
-                        p.Size = len(s)
+                        # Don't set size to 0, even for empty strings.
+                        p.Size = max(len(s), 1)
                         
                     elif isinstance(elem, basestring):
-                    	
                         s = elem
                         # Hack to trim microseconds on iso dates down to 3 decimals
                         try: # ... only if parameter is a datetime string
                             s = rx_datetime.findall(s)[0]
                         except: pass
-                        
                         p.Value = s
-                        string_len = len(s)
-                        
-                        #v2.1 Cole something does not like p.Size as Zero
-                        if string_len > 0:
-                            p.Size = string_len
+                        p.Size = max(len(s), 1)
 
                     elif isinstance(elem, buffer):
-                        p.Size = len(elem)
+                        p.Size = max(len(elem), 1)
                         p.AppendChunk(elem)
                         
                     else: p.Value = elem
@@ -510,8 +512,7 @@ class Cursor(object):
                                               sys.exc_traceback,
                                               8))
             tb=string.join(tblist)
-            tracebackhistory = tbk + tb + u'-- on command: "%s"\n-- with parameters: %s' \
-                               %(operation,parameters)
+            tracebackhistory = tbk + tb + u'\n-- on command: "%s"\n-- with parameters: %s \n-- supplied values: %s' %(operation, format_parameters(self.cmd.Parameters), parameters)
             self._raiseCursorError(DatabaseError,tracebackhistory)
             return
 
@@ -538,7 +539,8 @@ class Cursor(object):
             self.execute(operation, params)
             if self.rowcount == -1:
                 canCount = False
-            elif canCount:
+                
+            if canCount:
                 total_recordcount += self.rowcount
 
         if canCount:
