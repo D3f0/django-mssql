@@ -73,6 +73,21 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def tablespace_sql(self, tablespace, inline=False):
         return "ON %s" % self.quote_name(tablespace)
+        
+    def regex_lookup(self, lookup_type):
+		if settings.DATABASE_ENGINE == 'sqlserver_ado' and \
+				hasattr(settings, 'DATABASE_MSSQL_REGEX') and \
+				settings.DATABASE_MSSQL_REGEX:
+			
+			# Case sensitivity
+			match_option = 0
+			if lookup_type == 'regex':
+				match_option = 1
+				
+			return "dbo.REGEXP_LIKE(%s, %s, %s)=1" % (field_sql, cast_sql, match_option)
+		else:
+			raise NotImplementedError
+
 
 # IP Address recognizer taken from:
 # http://mail.python.org/pipermail/python-list/2006-March/375505.html

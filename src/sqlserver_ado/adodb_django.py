@@ -124,7 +124,6 @@ class IntegrityError(DatabaseError): pass
 class DataError(DatabaseError): pass
 class NotSupportedError(DatabaseError): pass
 
-
 class DBAPITypeObject:
   def __init__(self,valuesTuple):
     self.values = valuesTuple
@@ -137,7 +136,6 @@ class DBAPITypeObject:
       return 1
 
     return -1
-
 
 def _logger(message, log_level=1):
 	if verbose and verbose>=log_level: print message
@@ -160,7 +158,8 @@ def format_parameters(parameters):
 	"""Formats a collection of ADO Command Parameters"""
 	desc = list()
 	for param in parameters:
-		desc.append("Name: %s, Type: %s, Size: %s" % (param.Name, adTypeNames.get(param.Type, str(param.Type)+'(unknown type)'), param.Size))
+		desc.append("Name: %s, Type: %s, Size: %s" % \
+			(param.Name, adTypeNames.get(param.Type, str(param.Type)+'(unknown type)'), param.Size))
 		
 	return '[' + ', '.join(desc) + ']'
 
@@ -178,7 +177,7 @@ class Connection(object):
             self.adoConn.BeginTrans() #Disables autocommit
 
         if verbose:
-            print 'adodbapi New connection at %X' % id(self)
+            print 'adodbapi - New connection at %X' % id(self)
             
     def _determineTransactionSupport(self):
         self.supportsTransactions = False
@@ -200,7 +199,7 @@ class Connection(object):
             self.adoConn.RollbackTrans()
         self.adoConn.Close()
         if verbose:
-            print 'adodbapi Closed connection at %X' % id(self)
+            print 'adodbapi - Closed connection at %X' % id(self)
 
     def close(self):
         """Close the connection now (rather than whenever __del__ is called).
@@ -339,7 +338,7 @@ class Cursor(object):
         self.description = None
         self.errorhandler = connection.errorhandler
         if verbose:
-            print 'adodbapi New cursor at %X on conn %X' % (id(self),id(self.conn))
+            print 'adodbapi - New cursor at %X on conn %X' % (id(self),id(self.conn))
 
     def __iter__(self):
         return iter(self.fetchone, None)
@@ -475,9 +474,8 @@ class Cursor(object):
                             s = rx_datetime.findall(s)[0]
                         except: pass
                         p.Value = s
-                        # Don't set size to 0, even for empty strings.
-                        p.Size = max(len(s), 1)
-                        
+                        p.Size = len(s)
+                                                
                     elif isinstance(elem, basestring):
                         s = elem
                         # Hack to trim microseconds on iso dates down to 3 decimals
@@ -485,13 +483,16 @@ class Cursor(object):
                             s = rx_datetime.findall(s)[0]
                         except: pass
                         p.Value = s
-                        p.Size = max(len(s), 1)
+                        p.Size = len(s)
 
                     elif isinstance(elem, buffer):
-                        p.Size = max(len(elem), 1)
+                        p.Size = len(elem)
                         p.AppendChunk(elem)
                         
                     else: p.Value = elem
+                    
+                    # Use -1 instead of 0 for empty strings and similar.
+                    if p.Size == 0: p.Size = -1
 
                     if verbose > 2:
                         print 'Parameter %d type %s stored as: %s' % (parmIndx,adTypeNames.get(p.Type, 'unknown'),repr(p.Value))
@@ -512,7 +513,8 @@ class Cursor(object):
                                               sys.exc_traceback,
                                               8))
             tb=string.join(tblist)
-            tracebackhistory = tbk + tb + u'\n-- on command: "%s"\n-- with parameters: %s \n-- supplied values: %s' %(operation, format_parameters(self.cmd.Parameters), parameters)
+            tracebackhistory = tbk + tb + u'\n-- on command: "%s"\n-- with parameters: %s \n-- supplied values: %s' %\
+            	(operation, format_parameters(self.cmd.Parameters), parameters)
             self._raiseCursorError(DatabaseError,tracebackhistory)
             return
 
