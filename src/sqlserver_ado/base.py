@@ -1,14 +1,13 @@
 """
 ADO MSSQL database backend for Django.
-
 Includes adodb_django, based on  adodbapi 2.1: http://adodbapi.sourceforge.net/
 """
+import re
 
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations
 import adodb_django as Database
 
-import re
-    
+
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError
 
@@ -25,8 +24,8 @@ class CursorWrapper(Database.Cursor):
 
         # Convert parameter style
         # Todo: Make this less naive; as it stands it would kill a wildcard prefix search.
-        if parameters is not None and "%s" in sql:
-            sql = sql.replace("%s", "?")
+        if parameters is not None and '%s' in sql:
+            sql = sql.replace('%s', "?")
             
         # Look for LIMIT/OFFSET in the SQL
         limit, offset = self._limit_re.search(sql).groups()
@@ -46,7 +45,6 @@ class CursorWrapper(Database.Cursor):
 class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True
 
-
 class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, field_name):
         return "DATEPART(%s, %s)" % (lookup_type, field_name)
@@ -65,7 +63,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def quote_name(self, name):
         if name.startswith('[') and name.endswith(']'):
-            return name # Quoting once is enough.
+            return name # already quoted
         return '[%s]' % name
 
     def random_function_sql(self):
@@ -75,15 +73,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         return "ON %s" % self.quote_name(tablespace)
         
     def regex_lookup(self, lookup_type):
-		if settings.DATABASE_ENGINE == 'sqlserver_ado' and \
-				hasattr(settings, 'DATABASE_MSSQL_REGEX') and \
-				settings.DATABASE_MSSQL_REGEX:
-			# Case sensitivity
-			match_option = {'iregex':0, 'regex':1}[lookup_type]
-				
-			return "dbo.REGEXP_LIKE(%s, %s, %s)=1" % (field_sql, cast_sql, match_option)
-		else:
-			raise NotImplementedError
+		# Case sensitivity
+		match_option = {'iregex':0, 'regex':1}[lookup_type]
+		return "dbo.REGEXP_LIKE(%%s, %%s, %s)=1" % (match_option,)
 
 
 # IP Address recognizer taken from:
