@@ -78,11 +78,8 @@ class DatabaseOperations(BaseDatabaseOperations):
 		if settings.DATABASE_ENGINE == 'sqlserver_ado' and \
 				hasattr(settings, 'DATABASE_MSSQL_REGEX') and \
 				settings.DATABASE_MSSQL_REGEX:
-			
 			# Case sensitivity
-			match_option = 0
-			if lookup_type == 'regex':
-				match_option = 1
+			match_option = {'iregex':0, 'regex':1}[lookup_type]
 				
 			return "dbo.REGEXP_LIKE(%s, %s, %s)=1" % (field_sql, cast_sql, match_option)
 		else:
