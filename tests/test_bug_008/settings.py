@@ -1,10 +1,11 @@
 # Django settings for testbackend project.
-def hack_backend_path():
+def hack_path():
 	import os, sys
-	backend_path = os.path.join(os.path.abspath(os.path.dirname(".")), "../../src")
-	sys.path.append(backend_path)
+	common_path = os.path.join(os.path.abspath(os.path.dirname(".")), "..")
+	sys.path.append(common_path)
 	
-hack_backend_path()
+hack_path()
+from dbsettings import *
 
 
 DEBUG = True
@@ -15,17 +16,6 @@ ADMINS = (
 )
 
 MANAGERS = ADMINS
-
-DATABASE_ENGINE = 'sqlserver_ado'
-DATABASE_MSSQL_REGEX = True
-
-DATABASE_HOST = r'localhost\ss2005'
-DATABASE_PORT = ''
-DATABASE_NAME = r'django_test_backend'
-
-# Use integrated auth.
-DATABASE_USER = ''
-DATABASE_PASSWORD = ''
 
 
 # Local time zone for this installation. Choices can be found here:

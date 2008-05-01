@@ -6,7 +6,7 @@ import re
 
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations
 import adodb_django as Database
-
+import query # local query.py for custom classes
 
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError
@@ -22,11 +22,10 @@ class CursorWrapper(Database.Cursor):
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
         sql = operation # So we can see the original and modified SQL in a traceback
 
-        # Convert parameter style
-        # Todo: Make this less naive; as it stands it would kill a wildcard prefix search.
+        # Convert parameter style from "%s" to qmark
         if parameters is not None and '%s' in sql:
-            sql = sql.replace('%s', "?")
-            
+            sql = sql % tuple("?" * len(parameters))
+
         # Look for LIMIT/OFFSET in the SQL
         limit, offset = self._limit_re.search(sql).groups()
         sql = self._limit_re.sub('', sql) 
@@ -44,38 +43,45 @@ class CursorWrapper(Database.Cursor):
 
 class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True
+    uses_custom_query_class = True
 
 class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, field_name):
-        return "DATEPART(%s, %s)" % (lookup_type, field_name)
+        return "DATEPART(%s, %s)" % (lookup_type, self.quote_name(field_name))
 
     def date_trunc_sql(self, lookup_type, field_name):
+    	quoted_field_name = self.quote_name(field_name)
+    	
         if lookup_type == 'year':
-            return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/01/01')" % field_name
+            return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/01/01')" % quoted_field_name
         if lookup_type == 'month':
-            return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/' + Convert(varchar, DATEPART(month, %s)) + '/01')" % (field_name, field_name)
+            return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/' + Convert(varchar, DATEPART(month, %s)) + '/01')" % (quoted_field_name, quoted_field_name)
         if lookup_type == 'day':
-            return "Convert(datetime, Convert(varchar(12), %s))" % field_name
+            return "Convert(datetime, Convert(varchar(12), %s))" % quoted_field_name
 
     def last_insert_id(self, cursor, table_name, pk_name):
-        cursor.execute("SELECT %s FROM %s WHERE %s = @@IDENTITY" % (pk_name, table_name, pk_name))
+    	quoted_pk_name = self.quote_name(pk_name)
+        cursor.execute("SELECT %s FROM %s WHERE %s = @@IDENTITY" % (quoted_pk_name, self.quote_name(table_name), quoted_pk_name))
         return cursor.fetchone()[0]
+
+    def query_class(self, DefaultQueryClass):
+        return query.query_class(DefaultQueryClass, Database)
 
     def quote_name(self, name):
         if name.startswith('[') and name.endswith(']'):
             return name # already quoted
         return '[%s]' % name
-
+        
     def random_function_sql(self):
         return 'RAND()'
 
-    def tablespace_sql(self, tablespace, inline=False):
-        return "ON %s" % self.quote_name(tablespace)
-        
     def regex_lookup(self, lookup_type):
 		# Case sensitivity
 		match_option = {'iregex':0, 'regex':1}[lookup_type]
 		return "dbo.REGEXP_LIKE(%%s, %%s, %s)=1" % (match_option,)
+
+    def tablespace_sql(self, tablespace, inline=False):
+        return "ON %s" % self.quote_name(tablespace)
 
 
 # IP Address recognizer taken from:

@@ -151,6 +151,7 @@ def connect(connstr, timeout=30):
     try:
         conn.Open()
     except (Exception), e:
+    	print "Error attempting connection: " + connstr
         raise DatabaseError(e)
     return Connection(conn)
 
