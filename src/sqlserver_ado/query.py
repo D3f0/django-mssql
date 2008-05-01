@@ -27,17 +27,15 @@ def query_class(QueryClass, Database):
 		def __init__(self, *args, **kwargs):
 			super(SqlServerQuery, self).__init__(*args, **kwargs)
 			
-			# If we are actually an insert query, try munging the as_sql call
+			# If we are an insert query, wrap "as_sql"
 			if self.__class__.__name__ == "InsertQuery":
-				self._saved_as_sql = self.as_sql
 				self.as_sql = self._insert_as_sql
 		
 		def _insert_as_sql(self, *args, **kwargs):
 			meta = self.model._meta
-			
 			quoted_table = self.connection.ops.quote_name(meta.db_table)
-			
-			sql, params = self._saved_as_sql(*args,**kwargs)
+			# Get (sql,params) from original InsertQuery.as_sql
+			sql, params = super(SqlServerQuery, self).as_sql(*args,**kwargs)
 			
 			if meta.pk.attname in self.columns:
 				sql = "SET IDENTITY_INSERT %s ON;%s;SET IDENTITY_INSERT %s OFF" % \

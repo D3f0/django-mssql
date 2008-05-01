@@ -23,7 +23,7 @@ class CursorWrapper(Database.Cursor):
         sql = operation # So we can see the original and modified SQL in a traceback
 
         # Convert parameter style from "%s" to qmark
-        if parameters is not None and '%s' in sql:
+        if parameters:
             sql = sql % tuple("?" * len(parameters))
 
         # Look for LIMIT/OFFSET in the SQL
