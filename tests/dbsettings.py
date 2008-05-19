@@ -19,7 +19,7 @@ DATABASE_PASSWORD = ''
 # not directly.
 def _hack_backend_path():
 	import os, sys
-	backend_path = os.path.join(os.path.abspath(os.path.dirname(".")), "../../src")
+	backend_path = os.path.join(os.path.abspath(os.path.dirname(".")), "../../source")
 	sys.path.append(backend_path)
 
 _hack_backend_path()
