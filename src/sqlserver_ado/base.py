@@ -37,7 +37,7 @@ class CursorWrapper(Database.Cursor):
 
 class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True
-    #uses_custom_query_class = True
+    uses_custom_query_class = True
 
 class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, field_name):
