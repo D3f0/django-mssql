@@ -841,7 +841,7 @@ variantConversions = VariantConversionMap({
     adoDateTimeTypes : datetimeFromCOMDate,
     adoApproximateNumericTypes: cvtFloat,
     (adCurrency,): cvtCurrency,
-    adoExactNumericTypes: identity, # use cvtNumeric to force decimal rather than unicode
+    adoExactNumericTypes: identity,
     adoLongTypes : long,
     adoIntegerTypes: int,
     adoRowIdTypes: int,
