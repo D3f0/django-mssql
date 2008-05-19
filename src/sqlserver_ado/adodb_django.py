@@ -813,7 +813,7 @@ def identity(x): return x
 
 mapPythonTypesToAdoTypes = {
 	buffer: adBinary,
-	float: adNumeric,
+	float: adDouble,
 	int: adInteger,
 	long: adBigInt,
 	str: adBSTR,
