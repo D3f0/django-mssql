@@ -33,15 +33,16 @@ def query_class(QueryClass, Database):
                 self.as_sql = self._insert_as_sql
 
         def _insert_as_sql(self, *args, **kwargs):
-            meta = self.model._meta
+            meta = self.get_meta()
+            
             quoted_table = self.connection.ops.quote_name(meta.db_table)
             # Get (sql,params) from original InsertQuery.as_sql
             sql, params = self._parent_as_sql(*args,**kwargs)
-
-            if meta.pk.attname in self.columns:
+            
+            if (meta.pk.attname in self.columns) and (meta.pk.__class__.__name__ == "AutoField"):
                 sql = "SET IDENTITY_INSERT %s ON;%s;SET IDENTITY_INSERT %s OFF" % \
                     (quoted_table, sql, quoted_table)
-			
+
             return sql, params
 
     return SqlServerQuery
