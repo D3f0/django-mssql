@@ -11,9 +11,7 @@ import query # local query.py for custom classes
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError
 
-# We need to use a special Cursor class because adodbapi expects question-mark
-# param style, but Django expects "%s". This cursor converts question marks to
-# format-string style.
+
 class CursorWrapper(Database.Cursor):
     def __init__(self, connection):
         Database.Cursor.__init__(self,connection)
@@ -21,10 +19,6 @@ class CursorWrapper(Database.Cursor):
         
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
         sql = operation # So we can see the original and modified SQL in a traceback
-
-        # Convert parameter style from "%s" to qmark
-        if parameters:
-            sql = sql % tuple("?" * len(parameters))
 
         # Look for LIMIT/OFFSET in the SQL
         limit, offset = self._limit_re.search(sql).groups()

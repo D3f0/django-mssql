@@ -70,9 +70,9 @@ threadsafety = 1
 ##2 = Threads may share the module and connections.
 ##3 = Threads may share the module, connections and cursors.
 
-paramstyle = 'qmark'
-# String constant stating the type of parameter marker formatting expected by the interface.
-# 'qmark' = Question mark style, e.g. '...WHERE name=?'
+# The underlying ADO library expects parameters as '?', but this wrapper 
+# expects '%s' parameters. This wrapper takes care of the conversion.
+paramstyle = 'format'
 
 version = __doc__.split('-',2)[0]
 
@@ -84,15 +84,15 @@ version = __doc__.split('-',2)[0]
 # 3... = Really really on for real
 verbose = False
 
-defaultIsolationLevel = adXactReadCommitted
 #  Set defaultIsolationLevel on module level before creating the connection.
 #   It may be one of "adXact..." consts.
 #   if you simply "import adodbapi", you'll say:
 #   "adodbapi.adodbapi.defaultIsolationLevel=adodbapi.adodbapi.adXactBrowse", for example
+defaultIsolationLevel = adXactReadCommitted
 
-defaultCursorLocation = adUseServer
 #  Set defaultCursorLocation on module level before creating the connection.
 #   It may be one of the "adUse..." consts.
+defaultCursorLocation = adUseServer
 
 
 def standardErrorHandler(connection,cursor,errorclass,errorvalue):
@@ -417,7 +417,7 @@ class Cursor(object):
             self.rs.Close()
             self.rs = None
 
-    def _executeHelper(self,operation,isStoredProcedureCall,parameters=None):
+    def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
         if self.conn is None:
             self._raiseCursorError(Error,None)
             return
@@ -432,28 +432,35 @@ class Cursor(object):
             self.cmd = win32com.client.Dispatch("ADODB.Command")
             self.cmd.ActiveConnection = self.conn.adoConn
             self.cmd.CommandTimeout = self.conn.adoConn.CommandTimeout
-            self.cmd.CommandText=operation
-            
+
             if isStoredProcedureCall:
                 self.cmd.CommandType = adCmdStoredProc
             else:
                 self.cmd.CommandType = adCmdText
 
+            parameter_replacements = list()
+            param_values = list()
+            
             if parameters is not None:
                 for i,elem in enumerate(parameters):
-                    name = 'p%i' % i
-                    adotype = pyTypeToADOType(elem)
-                    p = self.cmd.CreateParameter(name,adotype) # Name, Type, Direction, Size, Value
-                    if isStoredProcedureCall:
-                        p.Direction = adParamUnknown
-                    self.cmd.Parameters.Append(p)
+                    if elem is None:
+                        parameter_replacements.append('NULL')
+                    else:
+                        parameter_replacements.append('?')
+                        param_values.append(elem)
+                        name = 'p%i' % i
+                        adotype = pyTypeToADOType(elem)
+                        p = self.cmd.CreateParameter(name,adotype) # Name, Type, Direction, Size, Value
+                        if isStoredProcedureCall:
+                            p.Direction = adParamUnknown
+                        self.cmd.Parameters.Append(p)
                     
                 if verbose > 2:
                    _log_parameters(self.cmd.Parameters)
                    
                 returnValueIndex = _findReturnValueIndex(isStoredProcedureCall, self.cmd.Parameters)            
                 
-                for elem in parameters:
+                for elem in param_values:
                     parmIndx+=1
                     
                     # skip over the return value parameter (adParamReturnValue) if any
@@ -496,11 +503,17 @@ class Cursor(object):
                     if p.Size == 0: p.Size = -1
 
                     if verbose > 2:
-                        print 'Parameter %d type %s stored as: %s' % (parmIndx,adTypeNames.get(p.Type, 'unknown'),repr(p.Value))
+                        print 'Parameter %d type %s stored as: %s' % (
+                            parmIndx, 
+                            adTypeNames.get(p.Type, 'unknown'), 
+                            repr(p.Value))
 
             convertedAllParameters = True
 
-            # Execute the SQL
+            if parameters is not None:
+                operation = operation % tuple(parameter_replacements)
+
+            self.cmd.CommandText = operation
             adoRetVal = self.cmd.Execute()
 
         except (Exception), e:
@@ -810,11 +823,6 @@ mapPythonTypesToAdoTypes = {
 	datetime.date: adDate,
 	datetime.datetime: adDate,
 	datetime.time: adDate,
-	
-	# This is causing problems when "adEmpty", as that's not a SQL command parameter type.
-	# So, fake a type that's more or less convertable.
-	# (Alternate approach would be to replace ? in query with literal NULLs...)
-	type(None): adBSTR,
 }
 
 class VariantConversionMap(object):
