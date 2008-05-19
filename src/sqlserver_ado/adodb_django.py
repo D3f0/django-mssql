@@ -28,7 +28,7 @@
         - Parameters are generated incorrectly for use in UDFs.
     * DateObjectFromCOMDate always returns a DateTime, as this is what Django template
     	filters expect from a DateTimeField
-	* Inlined Django monkeypatching of ConvertVariantToPython
+	* In-lined Django monkeypatching of ConvertVariantToPython
 	
 	Python's DB-API 2.0:
 	http://www.python.org/dev/peps/pep-0249/
@@ -160,12 +160,12 @@ def format_parameters(parameters):
 	desc = list()
 	for param in parameters:
 		desc.append("Name: %s, Type: %s, Size: %s" % \
-			(param.Name, adTypeNames.get(param.Type, str(param.Type)+'(unknown type)'), param.Size))
+			(param.Name, adTypeNames.get(param.Type, str(param.Type)+' (unknown type)'), param.Size))
 		
 	return '[' + ', '.join(desc) + ']'
 
 class Connection(object):
-    def __init__(self,adoConn):
+    def __init__(self, adoConn):
         self.adoConn = adoConn
         self.errorhandler = None
         self.messages = []
@@ -187,11 +187,11 @@ class Connection(object):
                 self.supportsTransactions = (prop.Value > 0)
                 return
 
-    def _raiseConnectionError(self,errorclass,errorvalue):
+    def _raiseConnectionError(self, errorclass, errorvalue):
         eh = self.errorhandler
         if eh is None:
             eh = standardErrorHandler
-        eh(self,None,errorclass,errorvalue)
+        eh(self, None, errorclass, errorvalue)
 
     def _closeAdoConnection(self):
         """close the underlying ADO Connection object,
@@ -234,7 +234,7 @@ class Connection(object):
                     #If not, we will have to start a new transaction by this command:
                     self.adoConn.BeginTrans()
         except (Exception), e:
-            self._raiseConnectionError(Error,e)
+            self._raiseConnectionError(Error, e)
 
     def rollback(self):
         """In case a database does provide transactions this method causes the the database to roll back to
@@ -260,7 +260,7 @@ class Connection(object):
                 #If not, we will have to start a new transaction by this command:
                 self.adoConn.BeginTrans()
         else:
-            self._raiseConnectionError(NotSupportedError,None)
+            self._raiseConnectionError(NotSupportedError, None)
 
         #TODO: Could implement the prefered method by having two classes,
         # one with trans and one without, and make the connect function choose which one.
@@ -344,7 +344,7 @@ class Cursor(object):
     def __iter__(self):
         return iter(self.fetchone, None)
 
-    def _raiseCursorError(self,errorclass,errorvalue):
+    def _raiseCursorError(self, errorclass, errorvalue):
         eh = self.errorhandler
         if eh is None:
             eh = standardErrorHandler
@@ -362,9 +362,9 @@ class Cursor(object):
             then available through the standard fetchXXX() methods.
         """
         self.messages = []
-        return self._executeHelper(procname,True,parameters)
+        return self._executeHelper(procname, True, parameters)
 
-    def _returnADOCommandParameters(self,adoCommand):
+    def _returnADOCommandParameters(self, adoCommand):
         retLst = []
         for p in adoCommand.Parameters:
             if verbose > 2:
@@ -376,10 +376,10 @@ class Cursor(object):
                 retLst.append(pyObject)
         return retLst
 
-    def _makeDescriptionFromRS(self,rs):
+    def _makeDescriptionFromRS(self, recordset):
     	# Abort if closed or no recordset.
-        if (rs is None) or (rs.State == adStateClosed):
-            self.rs = None
+        if (recordset is None) or (recordset.State == adStateClosed):
+            self.recordset = None
             self.description = None
             return
 
@@ -391,11 +391,11 @@ class Cursor(object):
         # Switching to client-side cursors will force a static cursor,
         # and rowcount will then be set accurately [Cole]
         self.rowcount = -1
-        self.rs = rs
+        self.rs = recordset
         self.description = []
         
         for i in range(self.rs.Fields.Count):
-            f = rs.Fields(i)
+            f = self.rs.Fields(i)
             
             display_size = None            
             if not(self.rs.EOF or self.rs.BOF):
@@ -416,7 +416,7 @@ class Cursor(object):
         if self.rs and self.rs.State != adStateClosed:
             self.rs.Close()
             self.rs = None
-
+            
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
         if self.conn is None:
             self._raiseCursorError(Error,None)
