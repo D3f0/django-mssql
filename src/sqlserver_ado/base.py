@@ -43,7 +43,7 @@ class CursorWrapper(Database.Cursor):
 
 class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True
-    uses_custom_query_class = True
+    #uses_custom_query_class = True
 
 class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, field_name):
@@ -60,8 +60,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             return "Convert(datetime, Convert(varchar(12), %s))" % quoted_field_name
 
     def last_insert_id(self, cursor, table_name, pk_name):
-    	quoted_pk_name = self.quote_name(pk_name)
-        cursor.execute("SELECT %s FROM %s WHERE %s = @@IDENTITY" % (quoted_pk_name, self.quote_name(table_name), quoted_pk_name))
+        cursor.execute("SELECT CAST(IDENT_CURRENT(%s) as bigint)", [self.quote_name(table_name)]) 
         return cursor.fetchone()[0]
 
     def query_class(self, DefaultQueryClass):
