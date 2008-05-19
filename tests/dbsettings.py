@@ -6,7 +6,7 @@ import os
 DATABASE_ENGINE = 'sqlserver_ado'
 DATABASE_MSSQL_REGEX = True
 
-DATABASE_HOST =  os.environ['COMPUTERNAME'] + r'\sqlexpress'
+DATABASE_HOST =  os.environ['COMPUTERNAME'] + r'\ss2005'
 DATABASE_PORT = ''
 DATABASE_NAME = r'django_test_backend'
 

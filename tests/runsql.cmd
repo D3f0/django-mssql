@@ -1,1 +1,1 @@
-sqlcmd.exe -S localhost\sqlexpress -E -V11 -i %1
+sqlcmd.exe -S localhost\ss2005 -E -V11 -i %1
