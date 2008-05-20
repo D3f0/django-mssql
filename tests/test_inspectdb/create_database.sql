@@ -14,5 +14,14 @@ create table [table has spaces] (
 )
 go
 
-use [master]
+create table [Software] (
+	SoftwareID	bigint identity(1,1) not null,
+	
+	[PublicationID] [bigint] NOT NULL,
+	[Version] [nvarchar](20)   NOT NULL,
+	[VersionDate] [datetime] NOT NULL,
+    [NewFeatures] [nvarchar](1024) NULL,
+    
+	CONSTRAINT [PK_Software] PRIMARY KEY (SoftwareID ASC)
+)
 go
