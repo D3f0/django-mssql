@@ -71,7 +71,7 @@ class CursorWrapper(Database.Cursor):
 
 
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
-        sql = self._mangle_sql(operation)
+        sql = operation #self._mangle_sql(operation)
         Database.Cursor._executeHelper(self, sql, isStoredProcedureCall, parameters)
 
 

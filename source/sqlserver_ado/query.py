@@ -2,6 +2,7 @@
 Custom Query classes for MS SQL Serever.
 Derivatives of: django.db.models.sql.query.Query
 """
+import re
 
 # Gets the /base class/ for all Django queryies.
 # This custom class derives from: django.db.models.sql.query.Query
@@ -32,6 +33,65 @@ def query_class(QueryClass, Database):
                 self._parent_as_sql = self.as_sql
                 self.as_sql = self._insert_as_sql
 
+
+        def _mangle_order_limit_offset(self, sql, order, limit, offset):
+            limit = int(limit)
+            offset = int(offset)
+            
+            # Lop off the ORDER BY ... LIMIT ... OFFSET ...
+            sql_without_ORDER = self._re_order_limit_offset.sub('',sql)
+            # Lop off the initial "SELECT"
+            inner_sql = sql_without_ORDER.split(None, 1)[1]
+            
+            low = offset + 1
+            high = low + limit
+            
+            final_sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %(ordering)s) as my_row_number, %(rest)s) as QQQ where my_row_number between %(low)s and %(high)s" %\
+            {
+                'rest': inner_sql,
+                'ordering': order,
+                'low': low,
+                'high': high,
+            }
+            
+            return final_sql
+            
+        def _mangle_limit(self, sql, limit):
+            # Turn strings to ints
+            limit = int(limit)
+            
+            # Lop off any LIMIT... from the query
+            sql_without_limit = self._re_limit_offset.sub('', sql)
+            
+            # Cut into ['SELECT', '...rest of query...']
+            sql_parts = sql_without_limit.split(None, 1)
+            
+            return (' TOP %s ' % limit).join(sql_parts)
+    
+    
+        def _mangle_sql(self, sql):
+            self._re_limit_offset = \
+                re.compile(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
+                
+            self._re_order_limit_offset = \
+                re.compile(r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
+
+            order, limit, offset = self._re_order_limit_offset.search(sql).groups()
+            
+            if offset is None:
+                if limit is not None:
+                    return self._mangle_limit(sql, limit)
+                else:
+                    return sql
+            
+            # Otherwise we have an OFFSET
+            # Synthesize an ordering if we need to
+            if order is None:
+                meta = self.get_meta()
+                order = meta.pk.attname+" ASC"
+                    
+            return self._mangle_order_limit_offset(sql, order, limit, offset)
+    
                 
         def resolve_columns(self, row, fields=()):
             # If we're doing a LIMIT/OFFSET query, the resultset
@@ -42,10 +102,16 @@ def query_class(QueryClass, Database):
             
             return row
             
-        # This doesn't actually work
-        def _select_as_sql(self, *args, **kwargs):
-            sql = self._parent_as_sql(*args,**kwargs)
-            return sql
+            
+        def as_sql(self, with_limits=True, with_col_aliases=False):
+            # Get out of the way if we're not a select query
+            if self.__class__.__name__ != 'SqlServerQuery':
+                return super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
+
+            raw_sql, fields = super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
+            mangled_sql = self._mangle_sql(raw_sql)
+            return mangled_sql, fields
+
 
         def _insert_as_sql(self, *args, **kwargs):
             meta = self.get_meta()
