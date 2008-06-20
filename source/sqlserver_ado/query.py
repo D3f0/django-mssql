@@ -35,9 +35,6 @@ def query_class(QueryClass, Database):
 
 
         def _mangle_order_limit_offset(self, sql, order, limit, offset):
-            limit = int(limit)
-            offset = int(offset)
-            
             # Lop off the ORDER BY ... LIMIT ... OFFSET ...
             sql_without_ORDER = self._re_order_limit_offset.sub('',sql)
             # Lop off the initial "SELECT"
@@ -57,9 +54,6 @@ def query_class(QueryClass, Database):
             return final_sql
             
         def _mangle_limit(self, sql, limit):
-            # Turn strings to ints
-            limit = int(limit)
-            
             # Lop off any LIMIT... from the query
             sql_without_limit = self._re_limit_offset.sub('', sql)
             
@@ -67,8 +61,8 @@ def query_class(QueryClass, Database):
             sql_parts = sql_without_limit.split(None, 1)
             
             return (' TOP %s ' % limit).join(sql_parts)
-    
-    
+
+
         def _mangle_sql(self, sql):
             self._re_limit_offset = \
                 re.compile(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
@@ -80,7 +74,7 @@ def query_class(QueryClass, Database):
             
             if offset is None:
                 if limit is not None:
-                    return self._mangle_limit(sql, limit)
+                    return self._mangle_limit(sql, int(limit))
                 else:
                     return sql
             
@@ -90,7 +84,7 @@ def query_class(QueryClass, Database):
                 meta = self.get_meta()
                 order = meta.pk.attname+" ASC"
                     
-            return self._mangle_order_limit_offset(sql, order, limit, offset)
+            return self._mangle_order_limit_offset(sql, order, int(limit), int(offset))
     
                 
         def resolve_columns(self, row, fields=()):
@@ -109,8 +103,7 @@ def query_class(QueryClass, Database):
                 return super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
 
             raw_sql, fields = super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
-            mangled_sql = self._mangle_sql(raw_sql)
-            return mangled_sql, fields
+            return self._mangle_sql(raw_sql), fields
 
 
         def _insert_as_sql(self, *args, **kwargs):

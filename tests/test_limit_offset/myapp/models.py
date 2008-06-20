@@ -8,5 +8,8 @@ class Products(models.Model):
     class Meta:
         db_table = u'Products'
         
-    def __unicode__(self):
+    def __repr__(self):
         return "<Product %s: %s/%s (%s)" % (self.productid, self.name, self.color, self.notes)
+        
+    def __unicode__(self):
+        return u"<Product %s: %s/%s (%s)" % (self.productid, self.name, self.color, self.notes)
