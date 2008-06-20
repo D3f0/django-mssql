@@ -15,25 +15,65 @@ IntegrityError = Database.IntegrityError
 class CursorWrapper(Database.Cursor):
     def __init__(self, connection):
         Database.Cursor.__init__(self,connection)
-        self._limit_re = re.compile(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
+        self._re_limit_offset = re.compile(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
+        self._re_order_limit_offset = re.compile(r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
         
+    def _mangle_order_limit_offset(self, sql, order, limit, offset):
+        limit = int(limit)
+        offset = int(offset)
+        
+        # Lop off the ORDER BY ... LIMIT ... OFFSET ...
+        sql_without_ORDER = self._re_order_limit_offset.sub('',sql)
+        # Lop off the initial "SELECT"
+        inner_sql = sql_without_ORDER.split(None, 1)[1]
+        
+        low = offset + 1
+        high = low + limit
+        
+        final_sql = """SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %(ordering)s) as my_row_number, %(rest)s) as QQQ where my_row_number between %(low)s and %(high)s""" %\
+        {
+            'rest': inner_sql,
+            'ordering': order,
+            'low': low,
+            'high': high,
+        }
+        
+        return final_sql
+        
+    def _mangle_limit(self, sql, limit):
+        # Turn strings to ints
+        limit = int(limit)
+        
+        # Lop off any LIMIT... from the query
+        sql_without_limit = self._re_limit_offset.sub('', sql)
+        
+        # Cut into ['SELECT', '...rest of query...']
+        sql_parts = sql_without_limit.split(None, 1)
+        
+        return (' TOP %s ' % limit).join(sql_parts)
+
+
+    def _mangle_sql(self, sql):
+        order, limit, offset = self._re_order_limit_offset.search(sql).groups()
+        
+        if offset is None:
+            if limit is not None:
+                return self._mangle_limit(sql, limit)
+            else:
+                return sql
+        
+        # Otherwise we have an OFFSET
+        if order is None:
+            order = ""
+            #raise Exception("Offset without ORDER BY not supported (need to add the ID internally)")
+                
+        return self._mangle_order_limit_offset(sql, order, limit, offset)
+
+
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
-        sql = operation # So we can see the original and modified SQL in a traceback
-
-        # Look for LIMIT/OFFSET in the SQL
-        limit, offset = self._limit_re.search(sql).groups()
-        sql = self._limit_re.sub('', sql) 
-        
-        # This backend does not yet support OFFSET
-        if offset is not None:
-            raise Database.NotSupportedError('Offset is not supported by this backend.')
-        
-        # Convert a LIMIT clause to a TOP clause.
-        if limit is not None: 
-            limit = int(limit)
-            sql = (' TOP %s ' % limit).join(sql.split(None, 1))
-
+        sql = self._mangle_sql(operation)
         Database.Cursor._executeHelper(self, sql, isStoredProcedureCall, parameters)
+
 
 class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True

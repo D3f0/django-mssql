@@ -32,6 +32,21 @@ def query_class(QueryClass, Database):
                 self._parent_as_sql = self.as_sql
                 self.as_sql = self._insert_as_sql
 
+                
+        def resolve_columns(self, row, fields=()):
+            # If we're doing a LIMIT/OFFSET query, the resultset
+            # will have an initial "row number" column. We need
+            # do ditch this column before the ORM sees it.
+            if (len(row) == len(fields)+1):
+                return row[1:]
+            
+            return row
+            
+        # This doesn't actually work
+        def _select_as_sql(self, *args, **kwargs):
+            sql = self._parent_as_sql(*args,**kwargs)
+            return sql
+
         def _insert_as_sql(self, *args, **kwargs):
             meta = self.get_meta()
             
