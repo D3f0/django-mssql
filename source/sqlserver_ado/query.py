@@ -41,7 +41,7 @@ def query_class(QueryClass, Database):
             inner_sql = sql_without_ORDER.split(None, 1)[1]
             
             low = offset + 1
-            high = low + limit
+            high = low + limit - 1
             
             final_sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %(ordering)s) as my_row_number, %(rest)s) as QQQ where my_row_number between %(low)s and %(high)s" %\
             {
