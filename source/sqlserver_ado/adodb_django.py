@@ -720,10 +720,10 @@ def Binary(aString):
 
 
 def pyTypeToADOType(data):
-    try:
+    if isinstance(data, basestring):
+        return adBSTR
+    else:
         return mapPythonTypesToAdoTypes[type(data)]
-    except KeyError:
-	    raise DataError
 
 def cvtCurrency((hi, lo), decimal=2): #special for type adCurrency
     if lo < 0:
@@ -816,8 +816,6 @@ mapPythonTypesToAdoTypes = {
 	float: adDouble,
 	int: adInteger,
 	long: adBigInt,
-	str: adBSTR,
-	unicode: adBSTR,
 	bool: adBoolean,
 	decimal.Decimal: adNumeric,
 	datetime.date: adDate,
