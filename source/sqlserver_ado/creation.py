@@ -19,7 +19,7 @@ DATA_TYPES = {
     'PositiveSmallIntegerField': 'smallint CONSTRAINT [CK_smallint_pos_%(column)s] CHECK ([%(column)s] > 0)',
     'SlugField':         'nvarchar(%(max_length)s)',
     'SmallIntegerField': 'smallint',
-    'TextField':         'nvarchar(max)', # SQL Server 2005 and up!
+    'TextField':         'nvarchar(max)',
     'TimeField':         'datetime',
     'USStateField':      'nchar(2)',
 }

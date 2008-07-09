@@ -29,7 +29,7 @@ def get_table_description(cursor, table_name, identity_check=True):
     cursor.execute("SELECT * FROM [%s] where 1=0" % (table_name))
     columns = cursor.description
 
-    items = []
+    items = list()
     for column in columns:
         column = list(column) # Convert tuple to list
         if identity_check and _is_auto_field(cursor, table_name, column[0]):

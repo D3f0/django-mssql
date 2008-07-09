@@ -6,7 +6,7 @@ import re
 
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations
 import adodb_django as Database
-import query # local query.py for custom classes
+import query
 
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError

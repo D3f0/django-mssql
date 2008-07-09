@@ -297,7 +297,8 @@ def _configureParameter(p, value):
         p.Size = len(value)
         p.AppendChunk(value)
         
-    else: p.Value = value
+    else: 
+        p.Value = value
     
     # Use -1 instead of 0 for empty strings and similar.
     if p.Size == 0: p.Size = -1
@@ -508,7 +509,8 @@ class Cursor(object):
             self.execute(operation, params)
             if self.rowcount == -1:
                 total_recordcount = -1
-            elif total_recordcount != -1:
+                
+            if total_recordcount != -1:
                 total_recordcount += self.rowcount
 
         self.rowcount = total_recordcount
@@ -522,15 +524,17 @@ class Cursor(object):
             return
             
         if self.rs.State == adStateClosed or self.rs.BOF or self.rs.EOF:
-            if rows == 1: return None # fetchone can return None
-            else: return [] # fetchall and fetchmany return empty lists
+            if rows == 1: # fetchone can return None
+                return None
+            else: # fetchall and fetchmany return empty lists
+                return list()
 
         if rows:
             ado_results = self.rs.GetRows(rows)
         else:
             ado_results = self.rs.GetRows()
 
-        returnList=[]
+        returnList = list()
         for i,descTuple in enumerate(self.description):
             # Desctuple =(name, type_code, display_size, internal_size, precision, scale, null_ok).
             type_code = descTuple[1]
@@ -549,7 +553,6 @@ class Cursor(object):
         result = self._fetch(1)
         if result: # return record (not list of records)
             return result[0]
-        
         return None
 
     def fetchmany(self, size=None):
@@ -612,7 +615,6 @@ class Cursor(object):
     def setoutputsize(self, size, column=None): pass
 
 # Type specific constructors as required by the DB-API 2 specification.
-# (I don't think these are used by Django.)
 Date = datetime.date
 Time = datetime.time
 Timestamp = datetime.datetime
@@ -699,7 +701,7 @@ DATETIME = DBAPITypeObject(adoDateTimeTypes)
 ROWID    = DBAPITypeObject(adoRowIdTypes)
 
 
-def datetimeFromCOMDate(comDate):
+def cvtComDate(comDate):
 	date_as_float = float(comDate)
 	day_count = int(date_as_float)
 	fraction_of_day = abs(date_as_float - day_count)
@@ -721,7 +723,7 @@ mapPythonTypesToAdoTypes = {
 }
 
 variantConversions = MultiMap({
-        adoDateTimeTypes : datetimeFromCOMDate,
+        adoDateTimeTypes : cvtComDate,
         adoApproximateNumericTypes: cvtFloat,
         (adCurrency,): cvtCurrency,
         (adBoolean,): bool,

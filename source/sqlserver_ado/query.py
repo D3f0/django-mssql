@@ -27,7 +27,7 @@ def query_class(QueryClass, Database):
     class SqlServerQuery(QueryClass):
         def __init__(self, *args, **kwargs):
             super(SqlServerQuery, self).__init__(*args, **kwargs)
-            
+
             # If we are an insert query, wrap "as_sql"
             if self.__class__.__name__ == "InsertQuery":
                 self._parent_as_sql = self.as_sql
@@ -56,10 +56,8 @@ def query_class(QueryClass, Database):
         def _mangle_limit(self, sql, limit):
             # Lop off any LIMIT... from the query
             sql_without_limit = self._re_limit_offset.sub('', sql)
-            
             # Cut into ['SELECT', '...rest of query...']
             sql_parts = sql_without_limit.split(None, 1)
-            
             return (' TOP %s ' % limit).join(sql_parts)
 
 
@@ -75,8 +73,7 @@ def query_class(QueryClass, Database):
             if offset is None:
                 if limit is not None:
                     return self._mangle_limit(sql, int(limit))
-                else:
-                    return sql
+                return sql
             
             # Otherwise we have an OFFSET
             # Synthesize an ordering if we need to
@@ -93,7 +90,6 @@ def query_class(QueryClass, Database):
             # do ditch this column before the ORM sees it.
             if (len(row) == len(fields)+1):
                 return row[1:]
-            
             return row
             
             
@@ -114,7 +110,7 @@ def query_class(QueryClass, Database):
             sql, params = self._parent_as_sql(*args,**kwargs)
             
             if (meta.pk.attname in self.columns) and (meta.pk.__class__.__name__ == "AutoField"):
-                sql = "SET IDENTITY_INSERT %s ON;%s;SET IDENTITY_INSERT %s OFF" % \
+                sql = "SET IDENTITY_INSERT %s ON;%s;SET IDENTITY_INSERT %s OFF" %\
                     (quoted_table, sql, quoted_table)
 
             return sql, params
