@@ -44,14 +44,9 @@ from util import MultiMap
 
 apilevel = '2.0' # String constant stating the supported DB API level.
 
+# Level of thread safety this interface supports:
+# 1: Threads may share the module, but not connections.
 threadsafety = 1
-# Integer constant stating the level of thread safety the interface supports,
-# 1 = Threads may share the module, but not connections.
-## Possible values are:
-##0 = Threads may not share the module.
-##1 = Threads may share the module, but not connections.
-##2 = Threads may share the module and connections.
-##3 = Threads may share the module, connections and cursors.
 
 # The underlying ADO library expects parameters as '?', but this wrapper 
 # expects '%s' parameters. This wrapper takes care of the conversion.
@@ -59,12 +54,10 @@ paramstyle = 'format'
 
 version = __doc__.split('-',2)[0]
 
-
 # Verbosity of logging code
 # 0/False = off
 # 1/True = on
-# 2 = More on
-# 3... = Really really on for real
+# >1 = Additional debugging information
 verbose = False
 
 #  Set defaultIsolationLevel on module level before creating the connection.
@@ -124,22 +117,22 @@ class DBAPITypeObject:
 def _logger(message, log_level=1):
 	if verbose and verbose>=log_level: print message
 
-def connect(connstr, timeout=30):
+def connect(connection_string, timeout=30):
     "Connection string as in the ADO documentation, SQL timeout in seconds"
     pythoncom.CoInitialize()
-    conn = Dispatch('ADODB.Connection')
-    conn.CommandTimeout = timeout
-    conn.ConnectionString = connstr
+    c = Dispatch('ADODB.Connection')
+    c.CommandTimeout = timeout
+    c.ConnectionString = connection_string
 
-    _logger('%s attempting: "%s"' % (version,connstr))
+    _logger('%s attempting: "%s"' % (version, connection_string))
     try:
-        conn.Open()
-    except (Exception), e:
-    	print "Error attempting connection: " + connstr
+        c.Open()
+    except Exception, e:
+    	print "Error attempting connection: " + connection_string
         raise DatabaseError(e)
         
-    useTransactions = _determineTransactionSupport(conn)
-    return Connection(conn, useTransactions)
+    useTransactions = _determineTransactionSupport(c)
+    return Connection(c, useTransactions)
 
 def _determineTransactionSupport(adoConn):
     for prop in adoConn.Properties:
@@ -150,13 +143,11 @@ def _determineTransactionSupport(adoConn):
 def format_parameters(parameters):
 	"""Formats a collection of ADO Command Parameters"""
 	desc = list()
-	desc.append('[')
-	for param in parameters:
-		desc.append("Name: %s, Type: %s, Size: %s" % \
-			(param.Name, adTypeNames.get(param.Type, str(param.Type)+' (unknown type)'), param.Size))
-	desc.append(']')
+	for p in parameters:
+		desc.append("Name: %s, Type: %s, Size: %s" %\
+			(p.Name, adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size))
 		
-	return ', '.join(desc)
+	return '['+', '.join(desc)+']'
 
 class Connection(object):
     def __init__(self, adoConn, useTransactions=False):
@@ -276,19 +267,6 @@ def _log_parameters(parameters):
     """Log parameters for debugging queries."""
     for param in parameters:
         print 'adodbapi parameter attributes before=', param.Name, param.Type, param.Direction, param.Size
-
-def _findReturnValueIndex(isStoredProcedureCall, parameters):
-    if not isStoredProcedureCall:
-        return -1
-
-    if parameters.Count == len(parameters):
-        return -1
-
-    for i,param in enumerate(parameters):
-        if param.Direction == adParamReturnValue:
-            return i
-
-    return -1
 
 
 def _configureParameter(p, value):
@@ -622,18 +600,15 @@ class Cursor(object):
         if (self.conn is None) or (self.rs is None):
             self._raiseCursorError(Error,None)
             return None
-        
+
         try:
-            rsTuple = self.rs.NextRecordset()
+            recordset = self.rs.NextRecordset()[0]
+            if recordset is not None:
+                self._description_from_recordset(recordset)
+                return True
         except pywintypes.com_error, exc:
             self._raiseCursorError(NotSupportedError, exc.args)
 
-        rs = rsTuple[0]
-        if rs is None:
-            return None
-            
-        self._makeDescriptionFromRS(rs)
-        return True
 
     def setinputsizes(self,sizes): pass
     def setoutputsize(self, size, column=None): pass
