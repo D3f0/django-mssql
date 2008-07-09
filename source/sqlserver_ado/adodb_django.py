@@ -1,4 +1,6 @@
-"""adodbapi v2.1D -  A python DB API 2.0 interface to Microsoft ADO
+"""adodbapi v2.1D -  A (mostly) Python DB API 2.0 interface to Microsoft ADO
+	Python's DB-API 2.0:
+	http://www.python.org/dev/peps/pep-0249/
 
     Copyright (C) 2002  Henrik Ekelund
     Email: <http://sourceforge.net/sendmessage.php?touser=618411>
@@ -17,47 +19,28 @@
     License along with this library; if not, write to the Free Software
     Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-    version 2.1 by Vernon Cole -- update for Decimal data type
-    (requires Python 2.4 or above or or Python 2.3 with "import win32com.decimal_23")
-    all uses of "verbose" below added by Cole for v2.1
-
-    version 2.1D by Adam Vandenberg:
-    * Ripped out MX support; mx not suppored by Django
-    * Ripped out IronPython support, CoInitialize doesn't get called early enough anymore.
-    * Removed self.cmd.Parameters.Refresh(); always fall back on generated parameters
-        - Parameters are generated incorrectly for use in UDFs.
-    * DateObjectFromCOMDate always returns a DateTime, as this is what Django template
-    	filters expect from a DateTimeField
-	* In-lined Django monkeypatching of ConvertVariantToPython
-	
-	Python's DB-API 2.0:
-	http://www.python.org/dev/peps/pep-0249/
+    Version 2.1 by Vernon Cole
+    Version 2.1D by Adam Vandenberg, forked for internal Django backend use
 """
 
-from ado_consts import *
-
-import string
-import exceptions
-import time
-import calendar
 import sys
-import traceback
+import time
 import datetime
 import re
-
-rx_datetime = re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
 
 try:
     import decimal
 except ImportError: # for Python 2.3
     from django.utils import _decimal as decimal
 
-import win32com.client
+from win32com.client import Dispatch
 
 # Request Python decimal types
 import pythoncom
 pythoncom.__future_currency__ = True
 
+from ado_consts import *
+from util import MultiMap
 
 apilevel = '2.0' # String constant stating the supported DB API level.
 
@@ -94,17 +77,24 @@ defaultIsolationLevel = adXactReadCommitted
 #   It may be one of the "adUse..." consts.
 defaultCursorLocation = adUseServer
 
+# Used for COM to Python date conversions.
+_ordinal_1899_12_31 = datetime.date(1899,12,31).toordinal()-1
+_milliseconds_per_day = 24*60*60*1000
 
-def standardErrorHandler(connection,cursor,errorclass,errorvalue):
-    err = (errorclass,errorvalue)
+# Used for munging string date times (but see Django issue #7560)
+rx_datetime = re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
+
+
+def standardErrorHandler(connection, cursor, errorclass, errorvalue):
+    err = (errorclass, errorvalue)
     connection.messages.append(err)
     if cursor is not None:
         cursor.messages.append(err)
     raise errorclass(errorvalue)
 
 
-class Error(exceptions.StandardError): pass
-class Warning(exceptions.StandardError): pass
+class Error(StandardError): pass
+class Warning(StandardError): pass
 
 class InterfaceError(Error):
     def __init__(self, inner_exception=None):
@@ -125,17 +115,11 @@ class DataError(DatabaseError): pass
 class NotSupportedError(DatabaseError): pass
 
 class DBAPITypeObject:
-  def __init__(self,valuesTuple):
-    self.values = valuesTuple
+    def __init__(self,valuesTuple):
+        self.values = valuesTuple
 
-  def __cmp__(self,other):
-    if other in self.values:
-      return 0
-      
-    if other < self.values:
-      return 1
-
-    return -1
+    def __eq__(self, other): return other in self.values
+    def __ne__(self, other): return other not in self.values
 
 def _logger(message, log_level=1):
 	if verbose and verbose>=log_level: print message
@@ -143,7 +127,7 @@ def _logger(message, log_level=1):
 def connect(connstr, timeout=30):
     "Connection string as in the ADO documentation, SQL timeout in seconds"
     pythoncom.CoInitialize()
-    conn = win32com.client.Dispatch('ADODB.Connection')
+    conn = Dispatch('ADODB.Connection')
     conn.CommandTimeout = timeout
     conn.ConnectionString = connstr
 
@@ -153,26 +137,35 @@ def connect(connstr, timeout=30):
     except (Exception), e:
     	print "Error attempting connection: " + connstr
         raise DatabaseError(e)
-    return Connection(conn)
+        
+    useTransactions = _determineTransactionSupport(conn)
+    return Connection(conn, useTransactions)
+
+def _determineTransactionSupport(adoConn):
+    for prop in adoConn.Properties:
+        if prop.Name == 'Transaction DDL':
+            return (prop.Value > 0)
+    return False
 
 def format_parameters(parameters):
 	"""Formats a collection of ADO Command Parameters"""
 	desc = list()
+	desc.append('[')
 	for param in parameters:
 		desc.append("Name: %s, Type: %s, Size: %s" % \
 			(param.Name, adTypeNames.get(param.Type, str(param.Type)+' (unknown type)'), param.Size))
+	desc.append(']')
 		
-	return '[' + ', '.join(desc) + ']'
+	return ', '.join(desc)
 
 class Connection(object):
-    def __init__(self, adoConn):
+    def __init__(self, adoConn, useTransactions=False):
         self.adoConn = adoConn
         self.errorhandler = None
         self.messages = []
         self.adoConn.CursorLocation = defaultCursorLocation
+        self.supportsTransactions = useTransactions
         
-        self._determineTransactionSupport()
-
         if self.supportsTransactions:
             self.adoConn.IsolationLevel = defaultIsolationLevel
             self.adoConn.BeginTrans() #Disables autocommit
@@ -180,13 +173,6 @@ class Connection(object):
         if verbose:
             print 'adodbapi - New connection at %X' % id(self)
             
-    def _determineTransactionSupport(self):
-        self.supportsTransactions = False
-        for prop in self.adoConn.Properties:
-            if prop.Name == 'Transaction DDL':
-                self.supportsTransactions = (prop.Value > 0)
-                return
-
     def _raiseConnectionError(self, errorclass, errorvalue):
         eh = self.errorhandler
         if eh is None:
@@ -210,10 +196,9 @@ class Connection(object):
         The same applies to all cursor objects trying to use the connection.
         """
         self.messages = []
-
         try:
             self._closeAdoConnection()
-        except (Exception), e:
+        except Exception, e:
             self._raiseConnectionError(InternalError,e)
         pythoncom.CoUninitialize()
 
@@ -225,15 +210,17 @@ class Connection(object):
         Database modules that do not support transactions should implement this method with void functionality.
         """
         self.messages = []
+        if not self.supportsTransactions:
+            return
+            
         try:
-            if self.supportsTransactions:
-                self.adoConn.CommitTrans()
-                if not(self.adoConn.Attributes & adXactCommitRetaining):
-                    #If attributes has adXactCommitRetaining it performs retaining commits that is,
-                    #calling CommitTrans automatically starts a new transaction. Not all providers support this.
-                    #If not, we will have to start a new transaction by this command:
-                    self.adoConn.BeginTrans()
-        except (Exception), e:
+            self.adoConn.CommitTrans()
+            if not(self.adoConn.Attributes & adXactCommitRetaining):
+                #If attributes has adXactCommitRetaining it performs retaining commits that is,
+                #calling CommitTrans automatically starts a new transaction. Not all providers support this.
+                #If not, we will have to start a new transaction by this command:
+                self.adoConn.BeginTrans()
+        except Exception, e:
             self._raiseConnectionError(Error, e)
 
     def rollback(self):
@@ -252,22 +239,18 @@ class Connection(object):
         non-ability to perform the roll back when the method is invoked.
         """
         self.messages = []
-        if self.supportsTransactions:
-            self.adoConn.RollbackTrans()
-            if not(self.adoConn.Attributes & adXactAbortRetaining):
-                #If attributes has adXactAbortRetaining it performs retaining aborts that is,
-                #calling RollbackTrans automatically starts a new transaction. Not all providers support this.
-                #If not, we will have to start a new transaction by this command:
-                self.adoConn.BeginTrans()
-        else:
+        if not self.supportsTransactions:
             self._raiseConnectionError(NotSupportedError, None)
-
-        #TODO: Could implement the prefered method by having two classes,
-        # one with trans and one without, and make the connect function choose which one.
-        # the one without transactions should not implement rollback
+            
+        self.adoConn.RollbackTrans()
+        if not(self.adoConn.Attributes & adXactAbortRetaining):
+            #If attributes has adXactAbortRetaining it performs retaining aborts that is,
+            #calling RollbackTrans automatically starts a new transaction. Not all providers support this.
+            #If not, we will have to start a new transaction by this command:
+            self.adoConn.BeginTrans()
 
     def cursor(self):
-        "Return a new Cursor Object using the connection."
+        "Returns a new Cursor object using the current connection."
         self.messages = []
         return Cursor(self)
 
@@ -275,19 +258,17 @@ class Connection(object):
         print 'ADO Errors:(%i)' % self.adoConn.Errors.Count
         for e in self.adoConn.Errors:
             print 'Description: %s' % e.Description
-            print 'Number: %s ' % e.Number
-            print 'Number constant:' % adoErrors.get(e.Number, "unknown")
+            print 'Error: %s %s ' % (e.Number, adoErrors.get(e.Number, "unknown"))
+            if e.Number == ado_error_TIMEOUT:
+                print 'Timeout Error: Try using adodbpi.connect(constr,timeout=Nseconds)'
             print 'Source: %s' % e.Source
             print 'NativeError: %s' % e.NativeError
             print 'SQL State: %s' % e.SQLState
-            if e.Number == ado_error_TIMEOUT:
-                print ' Error means that the Query timed out.\n Try using adodbpi.connect(constr,timeout=Nseconds)'
 
     def __del__(self):
         try:
             self._closeAdoConnection()
-        except:
-            pass
+        except: pass
         self.adoConn = None
 
 
@@ -297,17 +278,52 @@ def _log_parameters(parameters):
         print 'adodbapi parameter attributes before=', param.Name, param.Type, param.Direction, param.Size
 
 def _findReturnValueIndex(isStoredProcedureCall, parameters):
-	if not isStoredProcedureCall:
-		return -1
-		
-	if parameters.Count == len(parameters):
-		return -1
-		
-	for i,param in enumerate(parameters):
-		if param.Direction == adParamReturnValue:
-			return i
-			
-	return -1
+    if not isStoredProcedureCall:
+        return -1
+
+    if parameters.Count == len(parameters):
+        return -1
+
+    for i,param in enumerate(parameters):
+        if param.Direction == adParamReturnValue:
+            return i
+
+    return -1
+
+
+def _configureParameter(p, value):
+    """Configures the given ADO Parameter 'p' with the Python 'value'."""
+    if isinstance(value, (datetime.date, datetime.datetime, datetime.time)):
+        #Known problem with JET Provider. Date can not be specified as a COM date.
+        # See for example:
+        # http://support.microsoft.com/default.aspx?scid=kb%3ben-us%3b284843
+        # One workaround is to provide the date as a string in the format 'YYYY-MM-dd'
+        s = value.isoformat()
+        # Hack to trim microseconds on iso dates down to 3 decimals
+        try: # ... only if parameter is a datetime string
+            s = rx_datetime.findall(s)[0]
+        except: pass
+        p.Value = s
+        p.Size = len(s)
+                                
+    elif isinstance(value, basestring):
+        s = value
+        # Hack to trim microseconds on iso dates down to 3 decimals
+        try: # ... only if parameter is a datetime string
+            s = rx_datetime.findall(s)[0]
+        except: pass
+        p.Value = s
+        p.Size = len(s)
+    
+    elif isinstance(value, buffer):
+        p.Size = len(value)
+        p.AppendChunk(value)
+        
+    else: p.Value = value
+    
+    # Use -1 instead of 0 for empty strings and similar.
+    if p.Size == 0: p.Size = -1
+
 
 class Cursor(object):
     description = None
@@ -364,47 +380,43 @@ class Cursor(object):
         self.messages = []
         return self._executeHelper(procname, True, parameters)
 
-    def _returnADOCommandParameters(self, adoCommand):
-        retLst = []
-        for p in adoCommand.Parameters:
+    def _returnADOCommandParameters(self, cmd):
+        values = list()
+        for p in cmd.Parameters:
             if verbose > 2:
                 print 'return', p.Name, p.Type, p.Direction, repr(p.Value)
-            pyObject = convertVariantToPython(p.Value,p.Type)
-            if p.Direction == adParamReturnValue:
-                self.returnValue = pyObject
-            else:
-                retLst.append(pyObject)
-        return retLst
 
-    def _makeDescriptionFromRS(self, recordset):
+            python_obj = convertVariantToPython(p.Value, p.Type)
+            if p.Direction == adParamReturnValue:
+                self.returnValue = python_obj
+            else:
+                values.append(python_obj)
+
+        return values
+
+    def _description_from_recordset(self, recordset):
     	# Abort if closed or no recordset.
         if (recordset is None) or (recordset.State == adStateClosed):
             self.recordset = None
             self.description = None
             return
 
-        # Since the current implementation has a forward-only cursor, RecordCount will always return -1
-        # The ADO documentation hints that obtaining the recordcount may be timeconsuming
-        #   "If the Recordset object does not support approximate positioning, this property
-        #    may be a significant drain on resources # [ekelund]
-        # Therefore, COM will not return rowcount in most cases. [Cole]
-        # Switching to client-side cursors will force a static cursor,
-        # and rowcount will then be set accurately [Cole]
+        # Since we use a forward-only cursor, rowcount will always return -1
         self.rowcount = -1
         self.rs = recordset
-        self.description = []
+        desc = list()
         
         for i in range(self.rs.Fields.Count):
             f = self.rs.Fields(i)
             
             display_size = None            
             if not(self.rs.EOF or self.rs.BOF):
-                #TODO: Is this the correct defintion according to the DB API 2 Spec ?
                 display_size = f.ActualSize
                 
             null_ok = bool(f.Attributes & adFldMayBeNull)
             
-            self.description.append((f.Name, f.Type, display_size, f.DefinedSize, f.Precision, f.NumericScale, null_ok))
+            desc.append((f.Name, f.Type, display_size, f.DefinedSize, f.Precision, f.NumericScale, null_ok))
+        self.description = desc
 
     def close(self):
         """Close the cursor now (rather than whenever __del__ is called).
@@ -416,7 +428,17 @@ class Cursor(object):
         if self.rs and self.rs.State != adStateClosed:
             self.rs.Close()
             self.rs = None
-            
+
+    def _new_command(self, isStoredProcedureCall):
+        self.cmd = Dispatch("ADODB.Command")
+        self.cmd.ActiveConnection = self.conn.adoConn
+        self.cmd.CommandTimeout = self.conn.adoConn.CommandTimeout
+
+        if isStoredProcedureCall:
+            self.cmd.CommandType = adCmdStoredProc
+        else:
+            self.cmd.CommandType = adCmdText
+
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
         if self.conn is None:
             self._raiseCursorError(Error,None)
@@ -427,113 +449,68 @@ class Cursor(object):
 
         parmIndx = -1
         convertedAllParameters = False
-        
+
         try:
-            self.cmd = win32com.client.Dispatch("ADODB.Command")
-            self.cmd.ActiveConnection = self.conn.adoConn
-            self.cmd.CommandTimeout = self.conn.adoConn.CommandTimeout
+            self._new_command(isStoredProcedureCall)
 
-            if isStoredProcedureCall:
-                self.cmd.CommandType = adCmdStoredProc
-            else:
-                self.cmd.CommandType = adCmdText
-
-            parameter_replacements = list()
-            param_values = list()
-            
             if parameters is not None:
-                for i,elem in enumerate(parameters):
-                    if elem is None:
+                # This will be a list of (parameter index, python value) tuples.
+                input_params = list()
+        
+                parameter_replacements = list()
+                for i,value in enumerate(parameters):
+                    if value is None:
                         parameter_replacements.append('NULL')
                     else:
                         parameter_replacements.append('?')
-                        param_values.append(elem)
-                        name = 'p%i' % i
-                        adotype = pyTypeToADOType(elem)
-                        p = self.cmd.CreateParameter(name,adotype) # Name, Type, Direction, Size, Value
+                        p = self.cmd.CreateParameter('p%i' % i, pyTypeToADOType(value))
                         if isStoredProcedureCall:
                             p.Direction = adParamUnknown
                         self.cmd.Parameters.Append(p)
+                        
+                        # Only process input parameter values
+                        if p.Direction in [adParamInput, adParamInputOutput, adParamUnknown]:
+                            input_params.append( (i, value) )
+                            
+                # Substitute literal NULL for None
+                operation = operation % tuple(parameter_replacements)
                     
                 if verbose > 2:
                    _log_parameters(self.cmd.Parameters)
                    
-                returnValueIndex = _findReturnValueIndex(isStoredProcedureCall, self.cmd.Parameters)            
-                
-                for elem in param_values:
-                    parmIndx+=1
-                    
-                    # skip over the return value parameter (adParamReturnValue) if any
-                    if parmIndx == returnValueIndex:
-                        parmIndx+=1
-                        
-                    p = self.cmd.Parameters(parmIndx)
-                    if p.Direction not in [adParamInput, adParamInputOutput, adParamUnknown]:
-                    	continue
 
-                    if isinstance(elem, (datetime.date, datetime.datetime, datetime.time)):
-                        #Known problem with JET Provider. Date can not be specified as a COM date.
-                        # See for example:
-                        # http://support.microsoft.com/default.aspx?scid=kb%3ben-us%3b284843
-                        # One workaround is to provide the date as a string in the format 'YYYY-MM-dd'
-                        s = elem.isoformat()
-                        # Hack to trim microseconds on iso dates down to 3 decimals
-                        try: # ... only if parameter is a datetime string
-                            s = rx_datetime.findall(s)[0]
-                        except: pass
-                        p.Value = s
-                        p.Size = len(s)
-                                                
-                    elif isinstance(elem, basestring):
-                        s = elem
-                        # Hack to trim microseconds on iso dates down to 3 decimals
-                        try: # ... only if parameter is a datetime string
-                            s = rx_datetime.findall(s)[0]
-                        except: pass
-                        p.Value = s
-                        p.Size = len(s)
-
-                    elif isinstance(elem, buffer):
-                        p.Size = len(elem)
-                        p.AppendChunk(elem)
-                        
-                    else: p.Value = elem
-                    
-                    # Use -1 instead of 0 for empty strings and similar.
-                    if p.Size == 0: p.Size = -1
+                for i, value in input_params:
+                    parmIndx = i
+                    p = self.cmd.Parameters(i)
+                    _configureParameter(p, value)
 
                     if verbose > 2:
-                        print 'Parameter %d type %s stored as: %s' % (
-                            parmIndx, 
-                            adTypeNames.get(p.Type, 'unknown'), 
-                            repr(p.Value))
+                        print 'Parameter %d type %s stored as: %s' %\
+                            (i, adTypeNames.get(p.Type, 'unknown'), repr(p.Value))
 
             convertedAllParameters = True
 
-            if parameters is not None:
-                operation = operation % tuple(parameter_replacements)
-
             self.cmd.CommandText = operation
-            adoRetVal = self.cmd.Execute()
+            recordset = self.cmd.Execute()
 
-        except (Exception), e:
-            tbk = u'\n--ADODBAPI\n'
-            if 0 <= parmIndx and not convertedAllParameters:
-                tbk += u'-- Trying parameter %d, %s: %s\n' \
-                    %(parmIndx, adTypeNames.get(self.cmd.Parameters(parmIndx).Type, 'unknown'), repr(parameters[parmIndx]))
+        except Exception, e:
+            # todo: What if self.cmd is None (hasn't been set yet)?
+            # Then this exception handler blows up a little.
+            import traceback
+            message = u'\n--ADODBAPI\n'
+            if not convertedAllParameters and 0 <= parmIndx:
+                message += u'-- Trying parameter %d, %s: %s\n' %\
+                    (parmIndx, adTypeNames.get(self.cmd.Parameters(parmIndx).Type, 'unknown'), repr(parameters[parmIndx]))
             
-            tblist=(traceback.format_exception(sys.exc_type,
-                                              sys.exc_value,
-                                              sys.exc_traceback,
-                                              8))
-            tb=string.join(tblist)
-            tracebackhistory = tbk + tb + u'\n-- on command: "%s"\n-- with parameters: %s \n-- supplied values: %s' %\
-            	(operation, format_parameters(self.cmd.Parameters), parameters)
+            tb = u'\n'.join(traceback.format_exception(*sys.exc_info()))
+            
+            tracebackhistory = u'%s%s\n-- on command: "%s"\n-- with parameters: %s \n-- supplied values: %s' %\
+            	(message, tb, operation, format_parameters(self.cmd.Parameters), parameters)
             self._raiseCursorError(DatabaseError,tracebackhistory)
             return
 
-        self.rowcount=adoRetVal[1]  # May be -1 if NOCOUNT is set.
-        self._makeDescriptionFromRS(adoRetVal[0])
+        self.rowcount=recordset[1]  # May be -1 if NOCOUNT is set.
+        self._description_from_recordset(recordset[0])
 
         if isStoredProcedureCall and parameters != None:
             return self._returnADOCommandParameters(self.cmd)
@@ -546,23 +523,19 @@ class Cursor(object):
     def executemany(self, operation, seq_of_parameters):
         """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters.
 
-        Return values are not defined.
+        No return value.
         """
         self.messages = []
         total_recordcount = 0
-        canCount=True
+
         for params in seq_of_parameters:
             self.execute(operation, params)
             if self.rowcount == -1:
-                canCount = False
-                
-            if canCount:
+                total_recordcount = -1
+            elif total_recordcount != -1:
                 total_recordcount += self.rowcount
 
-        if canCount:
-            self.rowcount = total_recordcount
-        else:
-            self.rowcount = -1
+        self.rowcount = total_recordcount
 
     def _fetch(self, rows=None):
         """ Fetch rows from the recordset.
@@ -662,41 +635,15 @@ class Cursor(object):
         self._makeDescriptionFromRS(rs)
         return True
 
-    def setinputsizes(self,sizes):
-        pass
+    def setinputsizes(self,sizes): pass
+    def setoutputsize(self, size, column=None): pass
 
-    def setoutputsize(self, size, column=None):
-        pass
-
-
-#Type Objects and Constructors
-#Many databases need to have the input in a particular format for binding to an operation's input parameters.
-#For example, if an input is destined for a DATE column, then it must be bound to the database in a particular
-#string format. Similar problems exist for "Row ID" columns or large binary items (e.g. blobs or RAW columns).
-#This presents problems for Python since the parameters to the executeXXX() method are untyped.
-#When the database module sees a Python string object, it doesn't know if it should be bound as a simple CHAR column,
-#as a raw BINARY item, or as a DATE.
-#
-#To overcome this problem, a module must provide the constructors defined below to create objects that can
-#hold special values. When passed to the cursor methods, the module can then detect the proper type of
-#the input parameter and bind it accordingly.
-
-#A Cursor Object's description attribute returns information about each of the result columns of a query.
-#The type_code must compare equal to one of Type Objects defined below. Type Objects may be equal to more than
-#one type code (e.g. DATETIME could be equal to the type codes for date, time and timestamp columns;
-#see the Implementation Hints below for details).
-
-def Date(year,month,day):
-    "This function constructs an object holding a date value."
-    return datetime.date(year,month,day)
-
-def Time(hour,minute,second):
-    "This function constructs an object holding a time value."
-    return datetime.time(hour,minute,second)
-
-def Timestamp(year,month,day,hour,minute,second):
-    "This function constructs an object holding a time stamp value."
-    return datetime.datetime(year,month,day,hour,minute,second)
+# Type specific constructors as required by the DB-API 2 specification.
+# (I don't think these are used by Django.)
+Date = datetime.date
+Time = datetime.time
+Timestamp = datetime.datetime
+Binary = buffer
 
 def DateFromTicks(ticks):
     """This function constructs an object holding a date value from the given ticks value
@@ -714,28 +661,29 @@ def TimestampFromTicks(ticks):
     see the documentation of the standard Python time module for details). """
     return datetime.datetime(*time.localtime(ticks)[:6])
 
-def Binary(aString):
-    """This function constructs an object capable of holding a binary (long) string value. """
-    return buffer(aString)
-
 
 def pyTypeToADOType(data):
     if isinstance(data, basestring):
         return adBSTR
-    else:
-        return mapPythonTypesToAdoTypes[type(data)]
 
-def cvtCurrency((hi, lo), decimal=2): #special for type adCurrency
+    return mapPythonTypesToAdoTypes[type(data)]
+
+def cvtCurrency((hi, lo), decimal_places=2):
     if lo < 0:
         lo += (2L ** 32)
-    # was: return round((float((long(hi) << 32) + lo))/10000.0,decimal)
+    # was: return round((float((long(hi) << 32) + lo))/10000.0, decimal_places)
     return decimal.Decimal((long(hi) << 32) + lo)/decimal.Decimal(1000)
 
 def cvtNumeric(variant):
 	return _convertNumberWithCulture(variant, decimal.Decimal)
 
 def cvtFloat(variant):
-	return _convertNumberWithCulture(variant, float)
+	converted = _convertNumberWithCulture(variant, float)
+    # If the type is float, but there is no decimal part, then return an integer. 
+    # --Adam V: Why does Django want this?
+	if str(converted)[-2:] == ".0":
+	    converted = int(converted)
+	return converted
         
 def _convertNumberWithCulture(variant, f):
     try:
@@ -746,40 +694,21 @@ def _convertNumberWithCulture(variant, f):
         europeVsUS = str(variant).replace(",",".")
         return f(europeVsUS)
     except (ValueError,TypeError): pass
-	
+
 
 def convertVariantToPython(variant, adType):
-    if variant is None:
+    if variant is None: 
         return None
+    return variantConversions[adType](variant)
 
-    # Don't convert booleans to 1/0 ints.	
-    if type(variant) == bool and adType == adBoolean:
-        return variant
-
-    converted = variantConversions[adType](variant)
-    
-    # If the type is float, but there is no decimal part, then return an integer. 
-    # --Adam V: Why does Django want this?
-    if type(converted) == float and str(converted)[-2:] == ".0":
-        return int(converted) # If float but int, then int.
-
-    return converted
-
-
-adoIntegerTypes = (adInteger,adSmallInt,adTinyInt,adUnsignedInt,
-                 adUnsignedSmallInt,adUnsignedTinyInt,
-                 adBoolean,adError)
+adoIntegerTypes = (adInteger,adSmallInt,adTinyInt,adUnsignedInt,adUnsignedSmallInt,adUnsignedTinyInt,adError)
 adoRowIdTypes = (adChapter,)
-adoLongTypes = (adBigInt,adFileTime,adUnsignedBigInt)
-adoExactNumericTypes = (adDecimal,adNumeric,adVarNumeric,adCurrency)
-adoApproximateNumericTypes = (adDouble,adSingle)
-adoStringTypes = (adBSTR,adChar,adLongVarChar,adLongVarWChar,
-                adVarChar,adVarWChar,adWChar,adGUID)
-adoBinaryTypes = (adBinary,adLongVarBinary,adVarBinary)
+adoLongTypes = (adBigInt, adUnsignedBigInt, adFileTime)
+adoExactNumericTypes = (adDecimal, adNumeric, adVarNumeric, adCurrency)
+adoApproximateNumericTypes = (adDouble, adSingle)
+adoStringTypes = (adBSTR,adChar,adLongVarChar,adLongVarWChar,adVarChar,adVarWChar,adWChar,adGUID)
+adoBinaryTypes = (adBinary, adLongVarBinary, adVarBinary)
 adoDateTimeTypes = (adDBTime, adDBTimeStamp, adDate, adDBDate)
-adoRemainingTypes = (adEmpty,adIDispatch,adIUnknown,
-                   adPropVariant,adArray,adUserDefined,
-                   adVariant)
 
 """This type object is used to describe columns in a database that are string-based (e.g. CHAR). """
 STRING   = DBAPITypeObject(adoStringTypes)
@@ -788,7 +717,7 @@ STRING   = DBAPITypeObject(adoStringTypes)
 BINARY   = DBAPITypeObject(adoBinaryTypes)
 
 """This type object is used to describe numeric columns in a database. """
-NUMBER   = DBAPITypeObject(adoIntegerTypes + adoLongTypes + adoExactNumericTypes + adoApproximateNumericTypes)
+NUMBER   = DBAPITypeObject((adBoolean,) + adoIntegerTypes + adoLongTypes + adoExactNumericTypes + adoApproximateNumericTypes)
 
 """This type object is used to describe date/time columns in a database. """
 DATETIME = DBAPITypeObject(adoDateTimeTypes)
@@ -796,20 +725,15 @@ DATETIME = DBAPITypeObject(adoDateTimeTypes)
 """This type object is used to describe the "Row ID" column in a database. """
 ROWID    = DBAPITypeObject(adoRowIdTypes)
 
-# Used for COM to Python date conversions.
-_ordinal_1899_12_31 = datetime.date(1899,12,31).toordinal()-1
 
 def datetimeFromCOMDate(comDate):
-	fComDate = float(comDate)
-	day_count = int(fComDate)
-	fraction_of_day = abs(fComDate-day_count)
+	date_as_float = float(comDate)
+	day_count = int(date_as_float)
+	fraction_of_day = abs(date_as_float - day_count)
 	
-	datetime_value = datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31)
-	# 86400000 = 24*60*60*1000 = milliseconds per day
-	datetime_value = datetime_value + datetime.timedelta(milliseconds=fraction_of_day*86400000)
-	return datetime_value
+	return (datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31) +
+	    datetime.timedelta(milliseconds=fraction_of_day * _milliseconds_per_day))
 
-def identity(x): return x
 
 mapPythonTypesToAdoTypes = {
 	buffer: adBinary,
@@ -823,27 +747,12 @@ mapPythonTypesToAdoTypes = {
 	datetime.time: adDate,
 }
 
-class VariantConversionMap(object):
-    def __init__(self, mapping):
-    	self.storage = dict()
-    	
-    	# mapping is a dict of: tuple(ado Type) => conversion function
-    	for adoType_list, conversion_function in mapping.iteritems():
-    		for adoType in adoType_list:
-    			self.storage[adoType] = conversion_function
-
-    def __getitem__(self, key):
-    	return self.storage.get(key, identity)
-
-variantConversions = VariantConversionMap({
-    adoDateTimeTypes : datetimeFromCOMDate,
-    adoApproximateNumericTypes: cvtFloat,
-    (adCurrency,): cvtCurrency,
-    adoExactNumericTypes: identity,
-    adoLongTypes : long,
-    adoIntegerTypes: int,
-    adoRowIdTypes: int,
-    adoStringTypes: identity,
-    adoBinaryTypes: identity,
-    adoRemainingTypes: identity
-})
+variantConversions = MultiMap({
+        adoDateTimeTypes : datetimeFromCOMDate,
+        adoApproximateNumericTypes: cvtFloat,
+        (adCurrency,): cvtCurrency,
+        (adBoolean,): bool,
+        adoLongTypes : long,
+        adoIntegerTypes+adoRowIdTypes: int,
+        adoBinaryTypes: buffer,
+    }, lambda x: x)
