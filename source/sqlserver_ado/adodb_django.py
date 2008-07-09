@@ -147,7 +147,7 @@ def format_parameters(parameters):
 		desc.append("Name: %s, Type: %s, Size: %s" %\
 			(p.Name, adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size))
 		
-	return '['+', '.join(desc)+']'
+	return '[' + ', '.join(desc) + ']'
 
 class Connection(object):
     def __init__(self, adoConn, useTransactions=False):
@@ -265,8 +265,8 @@ class Connection(object):
 
 def _log_parameters(parameters):
     """Log parameters for debugging queries."""
-    for param in parameters:
-        print 'adodbapi parameter attributes before=', param.Name, param.Type, param.Direction, param.Size
+    for p in parameters:
+        print 'adodbapi parameter attributes before=', p.Name, p.Type, p.Direction, p.Size
 
 
 def _configureParameter(p, value):
@@ -384,9 +384,7 @@ class Cursor(object):
         self.rs = recordset
         desc = list()
         
-        for i in range(self.rs.Fields.Count):
-            f = self.rs.Fields(i)
-            
+        for f in self.rs.Fields:            
             display_size = None            
             if not(self.rs.EOF or self.rs.BOF):
                 display_size = f.ActualSize
@@ -548,9 +546,9 @@ class Cursor(object):
             did not produce any result set or no call was issued yet.
         """
         self.messages = []
-        ret = self._fetch(1)
-        if ret: # return record (not list of records)
-            return ret[0]
+        result = self._fetch(1)
+        if result: # return record (not list of records)
+            return result[0]
         
         return None
 
