@@ -324,7 +324,7 @@ class Cursor(object):
     def _description_from_recordset(self, recordset):
     	# Abort if closed or no recordset.
         if (recordset is None) or (recordset.State == adStateClosed):
-            self.recordset = None
+            self.rs = None
             self.description = None
             return
 
@@ -340,7 +340,7 @@ class Cursor(object):
                 
             null_ok = bool(f.Attributes & adFldMayBeNull)
             
-            desc.append((f.Name, f.Type, display_size, f.DefinedSize, f.Precision, f.NumericScale, null_ok))
+            desc.append( (f.Name, f.Type, display_size, f.DefinedSize, f.Precision, f.NumericScale, null_ok) )
         self.description = desc
 
     def close(self):
@@ -351,19 +351,19 @@ class Cursor(object):
             self.rs.Close()
             self.rs = None
 
-    def _new_command(self, isStoredProcedureCall):
+    def _new_command(self, sproc_call):
         self.cmd = Dispatch("ADODB.Command")
         self.cmd.ActiveConnection = self.connection.adoConn
         self.cmd.CommandTimeout = self.connection.adoConn.CommandTimeout
 
-        if isStoredProcedureCall:
+        if sproc_call:
             self.cmd.CommandType = adCmdStoredProc
         else:
             self.cmd.CommandType = adCmdText
 
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
         if self.connection is None:
-            self._raiseCursorError(Error,None)
+            self._raiseCursorError(Error, None)
             return
 
         _parameter_error_message = ''
@@ -384,7 +384,6 @@ class Cursor(object):
                         p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
                         self.cmd.Parameters.Append(p)
                         
-                        # Only process input parameter values
                         if p.Direction in [adParamInput, adParamInputOutput, adParamUnknown]:
                             input_params.append( (i, value) )
 
@@ -451,7 +450,7 @@ class Cursor(object):
         
         rows -- Number of rows to fetch, or None (default) to fetch all rows.
         """
-        if (self.connection is None) or (self.rs is None):
+        if self.connection is None or self.rs is None:
             self._raiseCursorError(Error, None)
             return
             
@@ -503,8 +502,8 @@ class Cursor(object):
         value and subsequent calls to the fetch methods will return rows from the next result set.
         """
         self.messages = []
-        if (self.connection is None) or (self.rs is None):
-            self._raiseCursorError(Error,None)
+        if self.connection is None or self.rs is None:
+            self._raiseCursorError(Error, None)
             return None
 
         try:
@@ -512,8 +511,8 @@ class Cursor(object):
             if recordset is not None:
                 self._description_from_recordset(recordset)
                 return True
-        except pywintypes.com_error, exc:
-            self._raiseCursorError(NotSupportedError, exc.args)
+        except pywintypes.com_error, e:
+            self._raiseCursorError(NotSupportedError, e.args)
 
     def setinputsizes(self,sizes): pass
     def setoutputsize(self, size, column=None): pass
@@ -593,7 +592,6 @@ def _convertNumberWithCulture(variant, f):
             europeVsUS = str(variant).replace(",",".")
             return f(europeVsUS)
         except (ValueError,TypeError): pass
-
 
 def cvtComDate(comDate):
     date_as_float = float(comDate)
