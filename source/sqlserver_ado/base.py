@@ -5,7 +5,7 @@ Includes adodb_django, based on  adodbapi 2.1: http://adodbapi.sourceforge.net/
 import re
 
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations
-import adodb_django as Database
+import dbapi as Database
 import query
 
 DatabaseError = Database.DatabaseError

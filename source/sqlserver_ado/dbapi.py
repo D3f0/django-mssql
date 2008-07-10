@@ -296,12 +296,24 @@ def _configureParameter(p, value):
     elif isinstance(value, buffer):
         p.Size = len(value)
         p.AppendChunk(value)
+
+    elif isinstance(elem, decimal.Decimal):
+        s = str(elem.normalize())
+        p.Value = elem
+        p.Precision = len(s)
+
+        point = s.find('.')
+        if point == -1:
+            p.NumericScale = 0
+        else:
+            p.NumericScale = len(s)-point
         
     else: 
         p.Value = value
     
     # Use -1 instead of 0 for empty strings and similar.
-    if p.Size == 0: p.Size = -1
+    if p.Size == 0: 
+        p.Size = -1
 
 
 class Cursor(object):
@@ -441,16 +453,15 @@ class Cursor(object):
                     else:
                         parameter_replacements.append('?')
                         p = self.cmd.CreateParameter('p%i' % i, pyTypeToADOType(value))
-                        if isStoredProcedureCall:
-                            p.Direction = adParamUnknown
                         self.cmd.Parameters.Append(p)
                         
                         # Only process input parameter values
                         if p.Direction in [adParamInput, adParamInputOutput, adParamUnknown]:
                             input_params.append( (i, value) )
                             
-                # Substitute literal NULL for None
-                operation = operation % tuple(parameter_replacements)
+                if not isStoredProcedureCall:
+                    # Substitute literal NULL for None
+                    operation = operation % tuple(parameter_replacements)
                     
                 if verbose > 2:
                    _log_parameters(self.cmd.Parameters)
