@@ -35,7 +35,7 @@ except ImportError: # for Python 2.3
 
 from win32com.client import Dispatch
 
-# Request Python decimal types
+# Request Python decimal types from com layer
 import pythoncom
 pythoncom.__future_currency__ = True
 
@@ -54,16 +54,9 @@ paramstyle = 'format'
 
 version = __doc__.split('-',2)[0]
 
-# Verbosity of logging code
-# 0/False = off
-# 1/True = on
-# >1 = Additional debugging information
-verbose = False
 
 #  Set defaultIsolationLevel on module level before creating the connection.
 #   It may be one of "adXact..." consts.
-#   if you simply "import adodbapi", you'll say:
-#   "adodbapi.adodbapi.defaultIsolationLevel=adodbapi.adodbapi.adXactBrowse", for example
 defaultIsolationLevel = adXactReadCommitted
 
 #  Set defaultCursorLocation on module level before creating the connection.
@@ -114,8 +107,6 @@ class DBAPITypeObject:
     def __eq__(self, other): return other in self.values
     def __ne__(self, other): return other not in self.values
 
-def _logger(message, log_level=1):
-	if verbose and verbose>=log_level: print message
 
 def connect(connection_string, timeout=30):
     "Connection string as in the ADO documentation, SQL timeout in seconds"
@@ -124,7 +115,6 @@ def connect(connection_string, timeout=30):
     c.CommandTimeout = timeout
     c.ConnectionString = connection_string
 
-    _logger('%s attempting: "%s"' % (version, connection_string))
     try:
         c.Open()
     except Exception, e:
@@ -149,6 +139,7 @@ def format_parameters(parameters):
 		
 	return '[' + ', '.join(desc) + ']'
 
+
 class Connection(object):
     def __init__(self, adoConn, useTransactions=False):
         self.adoConn = adoConn
@@ -161,9 +152,6 @@ class Connection(object):
             self.adoConn.IsolationLevel = defaultIsolationLevel
             self.adoConn.BeginTrans() #Disables autocommit
 
-        if verbose:
-            print 'adodbapi - New connection at %X' % id(self)
-            
     def _raiseConnectionError(self, errorclass, errorvalue):
         eh = self.errorhandler
         if eh is None:
@@ -171,21 +159,13 @@ class Connection(object):
         eh(self, None, errorclass, errorvalue)
 
     def _closeAdoConnection(self):
-        """close the underlying ADO Connection object,
-           rolling it back first if it supports transactions."""
+        "Close the underlying ADO Connection object, rolling it back first if it supports transactions."
         if self.supportsTransactions:
             self.adoConn.RollbackTrans()
         self.adoConn.Close()
-        if verbose:
-            print 'adodbapi - Closed connection at %X' % id(self)
 
     def close(self):
-        """Close the connection now (rather than whenever __del__ is called).
-
-        The connection will be unusable from this point forward;
-        an Error (or subclass) exception will be raised if any operation is attempted with the connection.
-        The same applies to all cursor objects trying to use the connection.
-        """
+        "Close the database connection."
         self.messages = []
         try:
             self._closeAdoConnection()
@@ -271,20 +251,7 @@ def _log_parameters(parameters):
 
 def _configureParameter(p, value):
     """Configures the given ADO Parameter 'p' with the Python 'value'."""
-    if isinstance(value, (datetime.date, datetime.datetime, datetime.time)):
-        #Known problem with JET Provider. Date can not be specified as a COM date.
-        # See for example:
-        # http://support.microsoft.com/default.aspx?scid=kb%3ben-us%3b284843
-        # One workaround is to provide the date as a string in the format 'YYYY-MM-dd'
-        s = value.isoformat()
-        # Hack to trim microseconds on iso dates down to 3 decimals
-        try: # ... only if parameter is a datetime string
-            s = rx_datetime.findall(s)[0]
-        except: pass
-        p.Value = s
-        p.Size = len(s)
-                                
-    elif isinstance(value, basestring):
+    if isinstance(value, basestring):
         s = value
         # Hack to trim microseconds on iso dates down to 3 decimals
         try: # ... only if parameter is a datetime string
@@ -308,7 +275,8 @@ def _configureParameter(p, value):
         else:
             p.NumericScale = len(s)-point
         
-    else: 
+    else:
+        # For any other type, just set the value and let pythoncom do the right thing.
         p.Value = value
     
     # Use -1 instead of 0 for empty strings and similar.
@@ -345,8 +313,6 @@ class Cursor(object):
         self.rs = None
         self.description = None
         self.errorhandler = connection.errorhandler
-        if verbose:
-            print 'adodbapi - New cursor at %X on conn %X' % (id(self),id(self.conn))
 
     def __iter__(self):
         return iter(self.fetchone, None)
@@ -355,28 +321,16 @@ class Cursor(object):
         eh = self.errorhandler
         if eh is None:
             eh = standardErrorHandler
-        eh(self.conn,self,errorclass,errorvalue)
+        eh(self.conn, self, errorclass, errorvalue)
 
     def callproc(self, procname, parameters=None):
-        """Call a stored database procedure with the given name.
-
-            The sequence of parameters must contain one entry for each argument that the procedure expects.
-            The result of the call is returned as modified copy of the input sequence.
-            Input parameters are left untouched, output and input/output parameters replaced
-            with possibly new values.
-
-            The procedure may also provide a result set as output, which is
-            then available through the standard fetchXXX() methods.
-        """
+        "Call a stored database procedure with the given name."
         self.messages = []
         return self._executeHelper(procname, True, parameters)
 
     def _returnADOCommandParameters(self, cmd):
         values = list()
         for p in cmd.Parameters:
-            if verbose > 2:
-                print 'return', p.Name, p.Type, p.Direction, repr(p.Value)
-
             python_obj = convertVariantToPython(p.Value, p.Type)
             if p.Direction == adParamReturnValue:
                 self.returnValue = python_obj
@@ -408,10 +362,7 @@ class Cursor(object):
         self.description = desc
 
     def close(self):
-        """Close the cursor now (rather than whenever __del__ is called).
-            The cursor will be unusable from this point forward; an Error (or subclass)
-            exception will be raised if any operation is attempted with the cursor.
-        """
+        "Close the cursor (but not the associated connection.)"
         self.messages = []
         self.conn = None
         if self.rs and self.rs.State != adStateClosed:
@@ -432,9 +383,6 @@ class Cursor(object):
         if self.conn is None:
             self._raiseCursorError(Error,None)
             return
-
-        if verbose > 1 and parameters:
-            print 'adodbapi parameters=',repr(parameters)
 
         parmIndx = -1
         convertedAllParameters = False
@@ -458,23 +406,15 @@ class Cursor(object):
                         # Only process input parameter values
                         if p.Direction in [adParamInput, adParamInputOutput, adParamUnknown]:
                             input_params.append( (i, value) )
-                            
+
+                # Use literal NULLs in raw queries, but not sproc calls.                            
                 if not isStoredProcedureCall:
-                    # Substitute literal NULL for None
                     operation = operation % tuple(parameter_replacements)
-                    
-                if verbose > 2:
-                   _log_parameters(self.cmd.Parameters)
-                   
 
                 for i, value in input_params:
                     parmIndx = i
                     p = self.cmd.Parameters(i)
                     _configureParameter(p, value)
-
-                    if verbose > 2:
-                        print 'Parameter %d type %s stored as: %s' %\
-                            (i, adTypeNames.get(p.Type, 'unknown'), repr(p.Value))
 
             convertedAllParameters = True
 
@@ -504,9 +444,9 @@ class Cursor(object):
             return self._returnADOCommandParameters(self.cmd)
 
     def execute(self, operation, parameters=None):
-        """Prepare and execute a database operation (query or command)."""
+        "Prepare and execute a database operation (query or command)."
         self.messages = []
-        self._executeHelper(operation,False,parameters)
+        self._executeHelper(operation, False, parameters)
 
     def executemany(self, operation, seq_of_parameters):
         """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters.
