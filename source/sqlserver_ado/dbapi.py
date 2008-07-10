@@ -35,9 +35,8 @@ except ImportError: # for Python 2.3
 
 from win32com.client import Dispatch
 
-# Request Python decimal types from com layer
 import pythoncom
-pythoncom.__future_currency__ = True
+pythoncom.__future_currency__ = True # Request Python decimal from COM layer
 
 from ado_consts import *
 from util import MultiMap
@@ -109,7 +108,12 @@ class DBAPITypeObject:
 
 
 def connect(connection_string, timeout=30):
-    "Connection string as in the ADO documentation, SQL timeout in seconds"
+    """Connect to a database.
+    
+    connection_string -- An ADODB formatted connection string, see:
+        http://www.connectionstrings.com/?carrier=sqlserver2005
+    timeout -- A command timeout value, in seconds (default 30 seconds)
+    """
     pythoncom.CoInitialize()
     c = Dispatch('ADODB.Connection')
     c.CommandTimeout = timeout
@@ -121,17 +125,21 @@ def connect(connection_string, timeout=30):
     	print "Error attempting connection: " + connection_string
         raise DatabaseError(e)
         
-    useTransactions = _determineTransactionSupport(c)
+    useTransactions = _use_transactions(c)
     return Connection(c, useTransactions)
 
-def _determineTransactionSupport(adoConn):
-    for prop in adoConn.Properties:
+def _use_transactions(c):
+    """Return True if the given ADODB.Connection 'c' supports transations."""
+    for prop in c.Properties:
         if prop.Name == 'Transaction DDL':
-            return (prop.Value > 0)
+            return prop.Value > 0
     return False
 
 def format_parameters(parameters):
-	"""Formats a collection of ADO Command Parameters"""
+	"""Format a collection of ADO Command Parameters.
+	
+	Used by error reporting in _executeHelper.
+	"""
 	desc = list()
 	for p in parameters:
 		desc.append("Name: %s, Type: %s, Size: %s" %\
@@ -150,7 +158,7 @@ class Connection(object):
         
         if self.supportsTransactions:
             self.adoConn.IsolationLevel = defaultIsolationLevel
-            self.adoConn.BeginTrans() #Disables autocommit
+            self.adoConn.BeginTrans() #Disables autocommit per DBPAI
 
     def _raiseConnectionError(self, errorclass, errorvalue):
         eh = self.errorhandler
@@ -159,26 +167,25 @@ class Connection(object):
         eh(self, None, errorclass, errorvalue)
 
     def _closeAdoConnection(self):
-        "Close the underlying ADO Connection object, rolling it back first if it supports transactions."
+        """Close the underlying ADO Connection object, rolling back an active transation if supported."""
         if self.supportsTransactions:
             self.adoConn.RollbackTrans()
         self.adoConn.Close()
 
     def close(self):
-        "Close the database connection."
+        """Close the database connection."""
         self.messages = []
         try:
             self._closeAdoConnection()
         except Exception, e:
-            self._raiseConnectionError(InternalError,e)
+            self._raiseConnectionError(InternalError, e)
         pythoncom.CoUninitialize()
 
     def commit(self):
-        """Commit any pending transaction to the database.
+        """Commit a pending transaction to the database.
 
-        Note that if the database supports an auto-commit feature,
-        this must be initially off. An interface method may be provided to turn it back on.
-        Database modules that do not support transactions should implement this method with void functionality.
+        Note that if the database supports an auto-commit feature, this must 
+        be initially off.
         """
         self.messages = []
         if not self.supportsTransactions:
@@ -195,20 +202,7 @@ class Connection(object):
             self._raiseConnectionError(Error, e)
 
     def rollback(self):
-        """In case a database does provide transactions this method causes the the database to roll back to
-        the start of any pending transaction. Closing a connection without committing the changes first will
-        cause an implicit rollback to be performed.
-
-        If the database does not support the functionality required by the method, the interface should
-        throw an exception in case the method is used.
-        The preferred approach is to not implement the method and thus have Python generate
-        an AttributeError in case the method is requested. This allows the programmer to check for database
-        capabilities using the standard hasattr() function.
-
-        For some dynamically configured interfaces it may not be appropriate to require dynamically making
-        the method available. These interfaces should then raise a NotSupportedError to indicate the
-        non-ability to perform the roll back when the method is invoked.
-        """
+        """Abort a pending transation."""
         self.messages = []
         if not self.supportsTransactions:
             self._raiseConnectionError(NotSupportedError, None)
@@ -221,12 +215,12 @@ class Connection(object):
             self.adoConn.BeginTrans()
 
     def cursor(self):
-        "Returns a new Cursor object using the current connection."
+        """Return a new Cursor object using the current connection."""
         self.messages = []
         return Cursor(self)
 
     def printADOerrors(self):
-        print 'ADO Errors:(%i)' % self.adoConn.Errors.Count
+        print 'ADO Errors (%i):' % self.adoConn.Errors.Count
         for e in self.adoConn.Errors:
             print 'Description: %s' % e.Description
             print 'Error: %s %s ' % (e.Number, adoErrors.get(e.Number, "unknown"))
@@ -243,14 +237,8 @@ class Connection(object):
         self.adoConn = None
 
 
-def _log_parameters(parameters):
-    """Log parameters for debugging queries."""
-    for p in parameters:
-        print 'adodbapi parameter attributes before=', p.Name, p.Type, p.Direction, p.Size
-
-
-def _configureParameter(p, value):
-    """Configures the given ADO Parameter 'p' with the Python 'value'."""
+def _configure_parameter(p, value):
+    """Configure the given ADO Parameter 'p' with the Python 'value'."""
     if isinstance(value, basestring):
         s = value
         # Hack to trim microseconds on iso dates down to 3 decimals
@@ -324,7 +312,7 @@ class Cursor(object):
         eh(self.conn, self, errorclass, errorvalue)
 
     def callproc(self, procname, parameters=None):
-        "Call a stored database procedure with the given name."
+        """Call a stored database procedure with the given name."""
         self.messages = []
         return self._executeHelper(procname, True, parameters)
 
@@ -362,7 +350,7 @@ class Cursor(object):
         self.description = desc
 
     def close(self):
-        "Close the cursor (but not the associated connection.)"
+        """Close the cursor (but not the associated connection.)"""
         self.messages = []
         self.conn = None
         if self.rs and self.rs.State != adStateClosed:
@@ -414,7 +402,7 @@ class Cursor(object):
                 for i, value in input_params:
                     parmIndx = i
                     p = self.cmd.Parameters(i)
-                    _configureParameter(p, value)
+                    _configure_parameter(p, value)
 
             convertedAllParameters = True
 
@@ -449,10 +437,7 @@ class Cursor(object):
         self._executeHelper(operation, False, parameters)
 
     def executemany(self, operation, seq_of_parameters):
-        """Prepare a database operation (query or command) and then execute it against all parameter sequences or mappings found in the sequence seq_of_parameters.
-
-        No return value.
-        """
+        """Execute the given command against all parameter sequences or mappings given in seq_of_parameters."""
         self.messages = []
         total_recordcount = 0
 
@@ -467,11 +452,12 @@ class Cursor(object):
         self.rowcount = total_recordcount
 
     def _fetch(self, rows=None):
-        """ Fetch rows from the recordset.
-        rows is None gets all (for fetchall).
+        """Fetch rows from the current recordset.
+        
+        rows -- Number of rows to fetch, or None (default) to fetch all rows.
         """
         if (self.conn is None) or (self.rs is None):
-            self._raiseCursorError(Error,None)
+            self._raiseCursorError(Error, None)
             return
             
         if self.rs.State == adStateClosed or self.rs.BOF or self.rs.EOF:
@@ -494,11 +480,10 @@ class Cursor(object):
         return tuple(zip(*returnList))
 
     def fetchone(self):
-        """ Fetch the next row of a query result set, returning a single sequence,
-            or None when no more data is available.
+        """Fetch the next row of a query result set, returning a single sequence, or None when no more data is available.
 
-            An Error (or subclass) exception is raised if the previous call to executeXXX()
-            did not produce any result set or no call was issued yet.
+        An Error (or subclass) exception is raised if the previous call to executeXXX()
+        did not produce any result set or no call was issued yet.
         """
         self.messages = []
         result = self._fetch(1)
@@ -529,24 +514,18 @@ class Cursor(object):
         return self._fetch(size)
 
     def fetchall(self):
-        """Fetch all (remaining) rows of a query result, returning them as a sequence of sequences (e.g. a list of tuples).
-
-            Note that the cursor's arraysize attribute
-            can affect the performance of this operation.
-            An Error (or subclass) exception is raised if the previous call to executeXXX()
-            did not produce any result set or no call was issued yet.
-        """
+        """Fetch all remaining rows of a query result, returning them as a sequence of sequences."""
         self.messages = []
         return self._fetch()
 
     def nextset(self):
-        """Make the cursor skip to the next available set, discarding any remaining rows from the current set.
+        """Skip to the next available recordset, discarding any remaining rows from the current recordset.
 
-            If there are no more sets, the method returns None. Otherwise, it returns a true
-            value and subsequent calls to the fetch methods will return rows from the next result set.
+        If there are no more sets, the method returns None. Otherwise, it returns a true
+        value and subsequent calls to the fetch methods will return rows from the next result set.
 
-            An Error (or subclass) exception is raised if the previous call to executeXXX()
-            did not produce any result set or no call was issued yet.
+        An Error (or subclass) exception is raised if the previous call to executeXXX()
+        did not produce any result set or no call was issued yet.
         """
         self.messages = []
         if (self.conn is None) or (self.rs is None):
@@ -572,19 +551,15 @@ Timestamp = datetime.datetime
 Binary = buffer
 
 def DateFromTicks(ticks):
-    """This function constructs an object holding a date value from the given ticks value
-    (number of seconds since the epoch; see the documentation of the standard Python time module for details). """
+    """Construct an object holding a date value from the given # of ticks."""
     return datetime.date(*time.localtime(ticks)[:3])
 
 def TimeFromTicks(ticks):
-    """This function constructs an object holding a time value from the given ticks value
-    (number of seconds since the epoch; see the documentation of the standard Python time module for details). """
+    """Construct an object holding a time value from the given # of ticks."""
     return datetime.time(*time.localtime(ticks)[3:6])
 
 def TimestampFromTicks(ticks):
-    """This function constructs an object holding a time stamp value from the given
-    ticks value (number of seconds since the epoch;
-    see the documentation of the standard Python time module for details). """
+    """Construct an object holding a timestamp value from the given # of ticks."""
     return datetime.datetime(*time.localtime(ticks)[:6])
 
 
@@ -636,19 +611,20 @@ adoStringTypes = (adBSTR,adChar,adLongVarChar,adLongVarWChar,adVarChar,adVarWCha
 adoBinaryTypes = (adBinary, adLongVarBinary, adVarBinary)
 adoDateTimeTypes = (adDBTime, adDBTimeStamp, adDate, adDBDate)
 
-"""This type object is used to describe columns in a database that are string-based (e.g. CHAR). """
+#This type object is used to describe columns in a database that are string-based (e.g. CHAR).
 STRING   = DBAPITypeObject(adoStringTypes)
 
-"""This type object is used to describe (long) binary columns in a database (e.g. LONG, RAW, BLOBs). """
+#This type object is used to describe binary columns in a database (e.g. LONG, RAW, BLOBs).
 BINARY   = DBAPITypeObject(adoBinaryTypes)
 
-"""This type object is used to describe numeric columns in a database. """
+#This type object is used to describe numeric columns in a database.
 NUMBER   = DBAPITypeObject((adBoolean,) + adoIntegerTypes + adoLongTypes + adoExactNumericTypes + adoApproximateNumericTypes)
 
-"""This type object is used to describe date/time columns in a database. """
+#This type object is used to describe date/time columns in a database.
 DATETIME = DBAPITypeObject(adoDateTimeTypes)
 
-"""This type object is used to describe the "Row ID" column in a database. """
+#This type object is used to describe the row id columns in a database.
+#Not very useful for SQL Server, as normal row ids are usually just integers.
 ROWID    = DBAPITypeObject(adoRowIdTypes)
 
 
