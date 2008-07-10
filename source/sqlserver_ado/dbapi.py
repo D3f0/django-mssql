@@ -297,7 +297,7 @@ def _configureParameter(p, value):
         p.Size = len(value)
         p.AppendChunk(value)
 
-    elif isinstance(elem, decimal.Decimal):
+    elif isinstance(value, decimal.Decimal):
         s = str(elem.normalize())
         p.Value = elem
         p.Precision = len(s)

@@ -40,14 +40,14 @@ def sproc_2(connection):
 def sproc_2b(connection):
     "Calls a sproc using 'callproc'; None isn't supported as a parameter yet."
     c = connection.cursor()
-    c.callproc('uspAppUser_GetAll', [''])
+    c.callproc('uspAppUser_GetAll', [0])
     _print_names(c.fetchall())
     c.close()
 
 
 def main():
     connection = db.connect("PROVIDER=SQLOLEDB;DATA SOURCE=localhost\\ss2005;Initial Catalog=Ted;Integrated Security=SSPI")
-    sproc_1b(connection)
+    sproc_2b(connection)
     connection.close()
 
 main()
