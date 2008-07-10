@@ -121,7 +121,7 @@ def connect(connection_string, timeout=30):
     try:
         c.Open()
     except Exception, e:
-    	print "Error attempting connection: " + connection_string
+        print "Error attempting connection: " + connection_string
         raise DatabaseError(e)
         
     useTransactions = _use_transactions(c)
@@ -135,15 +135,15 @@ def _use_transactions(c):
     return False
 
 def format_parameters(parameters):
-	"""Format a collection of ADO Command Parameters.
-	
-	Used by error reporting in _executeHelper.
-	"""
-	desc = ["Name: %s, Type: %s, Size: %s" %\
-			(p.Name, adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size) 
-			for p in parameters]
-		
-	return '[' + ', '.join(desc) + ']'
+    """Format a collection of ADO Command Parameters.
+    
+    Used by error reporting in _executeHelper.
+    """
+    desc = ["Name: %s, Type: %s, Size: %s" %\
+        (p.Name, adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size)
+        for p in parameters]
+    
+    return '[' + ', '.join(desc) + ']'
 
 
 class Connection(object):
@@ -578,12 +578,12 @@ def cvtNumeric(variant):
 	return _convertNumberWithCulture(variant, decimal.Decimal)
 
 def cvtFloat(variant):
-	converted = _convertNumberWithCulture(variant, float)
+    converted = _convertNumberWithCulture(variant, float)
     # If the type is float, but there is no decimal part, then return an integer. 
     # --Adam V: Why does Django want this?
-	if str(converted)[-2:] == ".0":
-	    converted = int(converted)
-	return converted
+    if str(converted)[-2:] == ".0":
+        converted = int(converted)
+    return converted
         
 def _convertNumberWithCulture(variant, f):
     try: 
@@ -596,12 +596,12 @@ def _convertNumberWithCulture(variant, f):
 
 
 def cvtComDate(comDate):
-	date_as_float = float(comDate)
-	day_count = int(date_as_float)
-	fraction_of_day = abs(date_as_float - day_count)
-	
-	return (datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31) +
-	    datetime.timedelta(milliseconds=fraction_of_day * _milliseconds_per_day))
+    date_as_float = float(comDate)
+    day_count = int(date_as_float)
+    fraction_of_day = abs(date_as_float - day_count)
+    
+    return (datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31) +
+        datetime.timedelta(milliseconds=fraction_of_day * _milliseconds_per_day))
 
 variantConversions = MultiMap({
         adoDateTimeTypes : cvtComDate,
@@ -621,12 +621,12 @@ def _ado_type(data):
     return _map_to_adotype[type(data)]
 
 _map_to_adotype = {
-	buffer: adBinary,
-	float: adDouble,
-	int: adInteger,
-	long: adBigInt,
-	bool: adBoolean,
-	decimal.Decimal: adNumeric,
-	datetime.date: adDate,
-	datetime.datetime: adDate,
-	datetime.time: adDate, }
+    buffer: adBinary,
+    float: adDouble,
+    int: adInteger,
+    long: adBigInt,
+    bool: adBoolean,
+    decimal.Decimal: adNumeric,
+    datetime.date: adDate,
+    datetime.datetime: adDate,
+    datetime.time: adDate, }
