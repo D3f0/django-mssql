@@ -140,6 +140,8 @@ adTypeNames = {
     adWChar: 'adWChar',
    }
 
+def ado_type_name(ado_type):
+    return adTypeNames.get(ado_type, 'unknown type ('+str(ado_type)+')')
 
 # Error codes to names
 adoErrors= {

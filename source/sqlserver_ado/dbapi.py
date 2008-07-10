@@ -1,26 +1,25 @@
 """adodbapi v2.1D -  A (mostly) Python DB API 2.0 interface to Microsoft ADO
-	Python's DB-API 2.0:
-	http://www.python.org/dev/peps/pep-0249/
 
-    Copyright (C) 2002  Henrik Ekelund
-    Email: <http://sourceforge.net/sendmessage.php?touser=618411>
+Python's DB-API 2.0: http://www.python.org/dev/peps/pep-0249/
 
-    This library is free software; you can redistribute it and/or
-    modify it under the terms of the GNU Lesser General Public
-    License as published by the Free Software Foundation; either
-    version 2.1 of the License, or (at your option) any later version.
+Copyright (C) 2002  Henrik Ekelund
 
-    This library is distributed in the hope that it will be useful,
-    but WITHOUT ANY WARRANTY; without even the implied warranty of
-    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
-    Lesser General Public License for more details.
+This library is free software; you can redistribute it and/or
+modify it under the terms of the GNU Lesser General Public
+License as published by the Free Software Foundation; either
+version 2.1 of the License, or (at your option) any later version.
 
-    You should have received a copy of the GNU Lesser General Public
-    License along with this library; if not, write to the Free Software
-    Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+This library is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+Lesser General Public License for more details.
 
-    Version 2.1 by Vernon Cole
-    Version 2.1D by Adam Vandenberg, forked for internal Django backend use
+You should have received a copy of the GNU Lesser General Public
+License along with this library; if not, write to the Free Software
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+
+Version 2.1 by Vernon Cole
+Version 2.1D by Adam Vandenberg (forked for internal Django backend use)
 """
 
 import sys
@@ -129,7 +128,7 @@ def connect(connection_string, timeout=30):
     return Connection(c, useTransactions)
 
 def _use_transactions(c):
-    """Return True if the given ADODB.Connection 'c' supports transations."""
+    """Return True if the given ADODB.Connection supports transations."""
     for prop in c.Properties:
         if prop.Name == 'Transaction DDL':
             return prop.Value > 0
@@ -140,10 +139,9 @@ def format_parameters(parameters):
 	
 	Used by error reporting in _executeHelper.
 	"""
-	desc = list()
-	for p in parameters:
-		desc.append("Name: %s, Type: %s, Size: %s" %\
-			(p.Name, adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size))
+	desc = ["Name: %s, Type: %s, Size: %s" %\
+			(p.Name, adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size) 
+			for p in parameters]
 		
 	return '[' + ', '.join(desc) + ']'
 
@@ -267,37 +265,33 @@ def _configure_parameter(p, value):
         # For any other type, just set the value and let pythoncom do the right thing.
         p.Value = value
     
-    # Use -1 instead of 0 for empty strings and similar.
+    # Use -1 instead of 0 for empty strings and buffers
     if p.Size == 0: 
         p.Size = -1
 
 
 class Cursor(object):
-    description = None
 ##    This read-only attribute is a sequence of 7-item sequences.
 ##    Each of these sequences contains information describing one result column:
 ##        (name, type_code, display_size, internal_size, precision, scale, null_ok).
 ##    This attribute will be None for operations that do not return rows or if the
 ##    cursor has not had an operation invoked via the executeXXX() method yet.
 ##    The type_code can be interpreted by comparing it to the Type Objects specified in the section below.
+    description = None
 
-    rowcount = -1
 ##    This read-only attribute specifies the number of rows that the last executeXXX() produced
 ##    (for DQL statements like select) or affected (for DML statements like update or insert).
 ##    The attribute is -1 in case no executeXXX() has been performed on the cursor or
 ##    the rowcount of the last operation is not determinable by the interface.[7]
 ##    NOTE: -- adodbapi returns "-1" by default for all select statements
+    rowcount = -1
 
+    # Arraysize specifies the number of rows to fetch at a time with fetchmany().
     arraysize = 1
-##    This read/write attribute specifies the number of rows to fetch at a time with fetchmany().
-##    It defaults to 1 meaning to fetch a single row at a time.
-##    Implementations must observe this value with respect to the fetchmany() method,
-##    but are free to interact with the database a single row at a time.
-##    It may also be used in the implementation of executemany().
 
     def __init__(self, connection):
         self.messages = []
-        self.conn = connection
+        self.connection = connection
         self.rs = None
         self.description = None
         self.errorhandler = connection.errorhandler
@@ -309,7 +303,7 @@ class Cursor(object):
         eh = self.errorhandler
         if eh is None:
             eh = standardErrorHandler
-        eh(self.conn, self, errorclass, errorvalue)
+        eh(self.connection, self, errorclass, errorvalue)
 
     def callproc(self, procname, parameters=None):
         """Call a stored database procedure with the given name."""
@@ -319,7 +313,7 @@ class Cursor(object):
     def _returnADOCommandParameters(self, cmd):
         values = list()
         for p in cmd.Parameters:
-            python_obj = convertVariantToPython(p.Value, p.Type)
+            python_obj = _convert_to_python(p.Value, p.Type)
             if p.Direction == adParamReturnValue:
                 self.returnValue = python_obj
             else:
@@ -352,15 +346,15 @@ class Cursor(object):
     def close(self):
         """Close the cursor (but not the associated connection.)"""
         self.messages = []
-        self.conn = None
+        self.connection = None
         if self.rs and self.rs.State != adStateClosed:
             self.rs.Close()
             self.rs = None
 
     def _new_command(self, isStoredProcedureCall):
         self.cmd = Dispatch("ADODB.Command")
-        self.cmd.ActiveConnection = self.conn.adoConn
-        self.cmd.CommandTimeout = self.conn.adoConn.CommandTimeout
+        self.cmd.ActiveConnection = self.connection.adoConn
+        self.cmd.CommandTimeout = self.connection.adoConn.CommandTimeout
 
         if isStoredProcedureCall:
             self.cmd.CommandType = adCmdStoredProc
@@ -368,12 +362,11 @@ class Cursor(object):
             self.cmd.CommandType = adCmdText
 
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
-        if self.conn is None:
+        if self.connection is None:
             self._raiseCursorError(Error,None)
             return
 
-        parmIndx = -1
-        convertedAllParameters = False
+        _parameter_error_message = ''
 
         try:
             self._new_command(isStoredProcedureCall)
@@ -388,7 +381,7 @@ class Cursor(object):
                         parameter_replacements.append('NULL')
                     else:
                         parameter_replacements.append('?')
-                        p = self.cmd.CreateParameter('p%i' % i, pyTypeToADOType(value))
+                        p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
                         self.cmd.Parameters.Append(p)
                         
                         # Only process input parameter values
@@ -399,30 +392,29 @@ class Cursor(object):
                 if not isStoredProcedureCall:
                     operation = operation % tuple(parameter_replacements)
 
-                for i, value in input_params:
-                    parmIndx = i
-                    p = self.cmd.Parameters(i)
-                    _configure_parameter(p, value)
-
-            convertedAllParameters = True
+                try:
+                    for i, value in input_params:
+                        p = self.cmd.Parameters(i)
+                        _configure_parameter(p, value)
+                except:
+                    _parameter_error_message = u'Converting Parameter #%d: %s, %s\n' %\
+                        (i, ado_type_name(p.Type), repr(value))
+                    raise
 
             self.cmd.CommandText = operation
             recordset = self.cmd.Execute()
 
-        except Exception, e:
-            # todo: What if self.cmd is None (hasn't been set yet)?
-            # Then this exception handler blows up a little.
+        except:
             import traceback
-            message = u'\n--ADODBAPI\n'
-            if not convertedAllParameters and 0 <= parmIndx:
-                message += u'-- Trying parameter %d, %s: %s\n' %\
-                    (parmIndx, adTypeNames.get(self.cmd.Parameters(parmIndx).Type, 'unknown'), repr(parameters[parmIndx]))
+            stack_trace = u'\n'.join(traceback.format_exception(*sys.exc_info()))
             
-            tb = u'\n'.join(traceback.format_exception(*sys.exc_info()))
+            ado_params = u''
+            if self.cmd:
+                ado_params = format_parameters(self.cmd.Parameters)
             
-            tracebackhistory = u'%s%s\n-- on command: "%s"\n-- with parameters: %s \n-- supplied values: %s' %\
-            	(message, tb, operation, format_parameters(self.cmd.Parameters), parameters)
-            self._raiseCursorError(DatabaseError,tracebackhistory)
+            new_error_message = u'%s\n%s\nCommand: "%s"\nParameters: %s \nValues: %s' %\
+            	(stack_trace, _parameter_error_message, operation, ado_params, parameters)
+            self._raiseCursorError(DatabaseError, new_error_message)
             return
 
         self.rowcount=recordset[1]  # May be -1 if NOCOUNT is set.
@@ -450,13 +442,16 @@ class Cursor(object):
                 total_recordcount += self.rowcount
 
         self.rowcount = total_recordcount
+        
+    def _column_types(self):
+        return [column_desc[1] for column_desc in self.description]
 
     def _fetch(self, rows=None):
         """Fetch rows from the current recordset.
         
         rows -- Number of rows to fetch, or None (default) to fetch all rows.
         """
-        if (self.conn is None) or (self.rs is None):
+        if (self.connection is None) or (self.rs is None):
             self._raiseCursorError(Error, None)
             return
             
@@ -471,13 +466,11 @@ class Cursor(object):
         else:
             ado_results = self.rs.GetRows()
 
-        returnList = list()
-        for i,descTuple in enumerate(self.description):
-            # Desctuple =(name, type_code, display_size, internal_size, precision, scale, null_ok).
-            type_code = descTuple[1]
-            returnList.append([convertVariantToPython(r,type_code) for r in ado_results[i]])
+        py_columns = list()
+        for ado_type, column in zip(self._column_types(), ado_results):
+            py_columns.append( [_convert_to_python(cell, ado_type) for cell in column] )
 
-        return tuple(zip(*returnList))
+        return tuple(zip(*py_columns))
 
     def fetchone(self):
         """Fetch the next row of a query result set, returning a single sequence, or None when no more data is available.
@@ -492,22 +485,7 @@ class Cursor(object):
         return None
 
     def fetchmany(self, size=None):
-        """Fetch the next set of rows of a query result, returning a list of tuples. An empty sequence is returned when no more rows are available.
-
-        The number of rows to fetch per call is specified by the parameter.
-        If it is not given, the cursor's arraysize determines the number of rows to be fetched.
-        The method should try to fetch as many rows as indicated by the size parameter.
-        If this is not possible due to the specified number of rows not being available,
-        fewer rows may be returned.
-
-        An Error (or subclass) exception is raised if the previous call to executeXXX()
-        did not produce any result set or no call was issued yet.
-
-        Note there are performance considerations involved with the size parameter.
-        For optimal performance, it is usually best to use the arraysize attribute.
-        If the size parameter is used, then it is best for it to retain the same value from
-        one fetchmany() call to the next.
-        """
+        """Fetch the next set of rows of a query result, returning a list of tuples. An empty sequence is returned when no more rows are available."""
         self.messages = []
         if size is None:
             size = self.arraysize
@@ -523,12 +501,9 @@ class Cursor(object):
 
         If there are no more sets, the method returns None. Otherwise, it returns a true
         value and subsequent calls to the fetch methods will return rows from the next result set.
-
-        An Error (or subclass) exception is raised if the previous call to executeXXX()
-        did not produce any result set or no call was issued yet.
         """
         self.messages = []
-        if (self.conn is None) or (self.rs is None):
+        if (self.connection is None) or (self.rs is None):
             self._raiseCursorError(Error,None)
             return None
 
@@ -539,7 +514,6 @@ class Cursor(object):
                 return True
         except pywintypes.com_error, exc:
             self._raiseCursorError(NotSupportedError, exc.args)
-
 
     def setinputsizes(self,sizes): pass
     def setoutputsize(self, size, column=None): pass
@@ -552,55 +526,15 @@ Binary = buffer
 
 def DateFromTicks(ticks):
     """Construct an object holding a date value from the given # of ticks."""
-    return datetime.date(*time.localtime(ticks)[:3])
+    return Date(*time.localtime(ticks)[:3])
 
 def TimeFromTicks(ticks):
     """Construct an object holding a time value from the given # of ticks."""
-    return datetime.time(*time.localtime(ticks)[3:6])
+    return Time(*time.localtime(ticks)[3:6])
 
 def TimestampFromTicks(ticks):
     """Construct an object holding a timestamp value from the given # of ticks."""
-    return datetime.datetime(*time.localtime(ticks)[:6])
-
-
-def pyTypeToADOType(data):
-    if isinstance(data, basestring):
-        return adBSTR
-
-    return mapPythonTypesToAdoTypes[type(data)]
-
-def cvtCurrency((hi, lo), decimal_places=2):
-    if lo < 0:
-        lo += (2L ** 32)
-    # was: return round((float((long(hi) << 32) + lo))/10000.0, decimal_places)
-    return decimal.Decimal((long(hi) << 32) + lo)/decimal.Decimal(1000)
-
-def cvtNumeric(variant):
-	return _convertNumberWithCulture(variant, decimal.Decimal)
-
-def cvtFloat(variant):
-	converted = _convertNumberWithCulture(variant, float)
-    # If the type is float, but there is no decimal part, then return an integer. 
-    # --Adam V: Why does Django want this?
-	if str(converted)[-2:] == ".0":
-	    converted = int(converted)
-	return converted
-        
-def _convertNumberWithCulture(variant, f):
-    try:
-        return f(variant)
-    except (ValueError,TypeError): pass
-
-    try:
-        europeVsUS = str(variant).replace(",",".")
-        return f(europeVsUS)
-    except (ValueError,TypeError): pass
-
-
-def convertVariantToPython(variant, adType):
-    if variant is None: 
-        return None
-    return variantConversions[adType](variant)
+    return Timestamp(*time.localtime(ticks)[:6])
 
 adoIntegerTypes = (adInteger,adSmallInt,adTinyInt,adUnsignedInt,adUnsignedSmallInt,adUnsignedTinyInt,adError)
 adoRowIdTypes = (adChapter,)
@@ -628,6 +562,39 @@ DATETIME = DBAPITypeObject(adoDateTimeTypes)
 ROWID    = DBAPITypeObject(adoRowIdTypes)
 
 
+# Mapping ADO data types to Python objects.
+def _convert_to_python(variant, adType):
+    if variant is None: 
+        return None
+    return variantConversions[adType](variant)
+
+def cvtCurrency((hi, lo), decimal_places=2):
+    if lo < 0:
+        lo += (2L ** 32)
+    # was: return round((float((long(hi) << 32) + lo))/10000.0, decimal_places)
+    return decimal.Decimal((long(hi) << 32) + lo)/decimal.Decimal(1000)
+
+def cvtNumeric(variant):
+	return _convertNumberWithCulture(variant, decimal.Decimal)
+
+def cvtFloat(variant):
+	converted = _convertNumberWithCulture(variant, float)
+    # If the type is float, but there is no decimal part, then return an integer. 
+    # --Adam V: Why does Django want this?
+	if str(converted)[-2:] == ".0":
+	    converted = int(converted)
+	return converted
+        
+def _convertNumberWithCulture(variant, f):
+    try: 
+        return f(variant)
+    except (ValueError,TypeError):
+        try:
+            europeVsUS = str(variant).replace(",",".")
+            return f(europeVsUS)
+        except (ValueError,TypeError): pass
+
+
 def cvtComDate(comDate):
 	date_as_float = float(comDate)
 	day_count = int(date_as_float)
@@ -636,8 +603,24 @@ def cvtComDate(comDate):
 	return (datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31) +
 	    datetime.timedelta(milliseconds=fraction_of_day * _milliseconds_per_day))
 
+variantConversions = MultiMap({
+        adoDateTimeTypes : cvtComDate,
+        adoApproximateNumericTypes: cvtFloat,
+        (adCurrency,): cvtCurrency,
+        (adBoolean,): bool,
+        adoLongTypes : long,
+        adoIntegerTypes+adoRowIdTypes: int,
+        adoBinaryTypes: buffer, }
+    , lambda x: x)
 
-mapPythonTypesToAdoTypes = {
+
+# Mapping Python data types to ADO type codes
+def _ado_type(data):
+    if isinstance(data, basestring):
+        return adBSTR
+    return _map_to_adotype[type(data)]
+
+_map_to_adotype = {
 	buffer: adBinary,
 	float: adDouble,
 	int: adInteger,
@@ -646,15 +629,4 @@ mapPythonTypesToAdoTypes = {
 	decimal.Decimal: adNumeric,
 	datetime.date: adDate,
 	datetime.datetime: adDate,
-	datetime.time: adDate,
-}
-
-variantConversions = MultiMap({
-        adoDateTimeTypes : cvtComDate,
-        adoApproximateNumericTypes: cvtFloat,
-        (adCurrency,): cvtCurrency,
-        (adBoolean,): bool,
-        adoLongTypes : long,
-        adoIntegerTypes+adoRowIdTypes: int,
-        adoBinaryTypes: buffer,
-    }, lambda x: x)
+	datetime.time: adDate, }
