@@ -17,12 +17,19 @@ import re
 # so we check the most-derived type name and replace a method if it is
 # "InsertQuery".
 #
-# This seems fragile, but less so than relying on patches against
-# Django's guts.
+# Seems fragile, but less so than monkeypatching Django's guts.
+
+_re_order_limit_offset = \
+    re.compile(r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
+
+def _remove_limit_offset(sql):
+    return re.sub(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$', '', sql)
+
+
 def query_class(QueryClass, Database):
     """
-    Returns a custom django.db.models.sql.query.Query subclass that is
-    appropriate for MS SQL Server.
+    Return a custom django.db.models.sql.query.Query subclass appropriate 
+    for SQL Server.
     """
     class SqlServerQuery(QueryClass):
         def __init__(self, *args, **kwargs):
@@ -33,45 +40,34 @@ def query_class(QueryClass, Database):
                 self._parent_as_sql = self.as_sql
                 self.as_sql = self._insert_as_sql
 
-        def _remove_limit_offset(self, sql):
-            return re.sub(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$', '', sql)
 
         def _rewrite_limit_offset(self, sql, order, limit, offset):
             # Lop off the ORDER BY ... LIMIT ... OFFSET ...
-            sql_without_ORDER = self._re_order_limit_offset.sub('',sql)
+            sql_without_ORDER = _re_order_limit_offset.sub('',sql)
             # Lop off the initial "SELECT"
             inner_sql = sql_without_ORDER.split(None, 1)[1]
             
             low = offset + 1
             high = low + limit - 1
             
-            final_sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %(ordering)s) as my_row_number, %(rest)s) as QQQ where my_row_number between %(low)s and %(high)s" %\
-            {
-                'rest': inner_sql,
-                'ordering': order,
-                'low': low,
-                'high': high,
-            }
+            final_sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as my_row_number, %s) as QQQ where my_row_number between %s and %s" % ( order, inner_sql, low, high)
             
             return final_sql
             
         def _replace_limit_with_top(self, sql, limit):
             # Lop off any LIMIT... from the query
-            sql_without_limit = self._remove_limit_offset(sql)
+            sql_without_limit = _remove_limit_offset(sql)
             
             # Cut into ['SELECT', '...rest of query...']
             sql_parts = sql_without_limit.split(None, 1)
             return (' TOP %s ' % limit).join(sql_parts)
 
         def _mangle_sql(self, sql):
-            self._re_order_limit_offset = \
-                re.compile(r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
-
-            order, limit, offset = self._re_order_limit_offset.search(sql).groups()
+            order, limit, offset = _re_order_limit_offset.search(sql).groups()
             
             # Hack around an issue in [7885], extraneous "OFFSET 0":
             if limit is None and offset == '0':
-                return self._remove_limit_offset(sql)
+                return _remove_limit_offset(sql)
             
             # If we have no OFFSET, look for LIMIT and replace with TOP
             if offset is None:
