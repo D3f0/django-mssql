@@ -33,8 +33,10 @@ def query_class(QueryClass, Database):
                 self._parent_as_sql = self.as_sql
                 self.as_sql = self._insert_as_sql
 
+        def _remove_limit_offset(self, sql):
+            return re.sub(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$', '', sql)
 
-        def _mangle_order_limit_offset(self, sql, order, limit, offset):
+        def _rewrite_limit_offset(self, sql, order, limit, offset):
             # Lop off the ORDER BY ... LIMIT ... OFFSET ...
             sql_without_ORDER = self._re_order_limit_offset.sub('',sql)
             # Lop off the initial "SELECT"
@@ -61,43 +63,36 @@ def query_class(QueryClass, Database):
             sql_parts = sql_without_limit.split(None, 1)
             return (' TOP %s ' % limit).join(sql_parts)
 
-        def _remove_limit_offset(self, sql):
-            _re_limit_offset = re.compile(r'(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
-            return _re_limit_offset.sub('', sql)
-
         def _mangle_sql(self, sql):
             self._re_order_limit_offset = \
                 re.compile(r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
 
             order, limit, offset = self._re_order_limit_offset.search(sql).groups()
             
-            #print 'order:',order, 'limit:',repr(limit), 'offset:',repr(offset)
-            # Hack around an issue in 7885, extraneous "OFFSET 0":
+            # Hack around an issue in [7885], extraneous "OFFSET 0":
             if limit is None and offset == '0':
                 return self._remove_limit_offset(sql)
             
+            # If we have no OFFSET, look for LIMIT and replace with TOP
             if offset is None:
                 if limit is None:
                     return sql
                 return self._replace_limit_with_top(sql, int(limit))
             
-            # Otherwise we have an OFFSET
-            # Synthesize an ordering if we need to
+            # Otherwise we have an OFFSET, synthesize an ordering if needed
             if order is None:
                 meta = self.get_meta()
                 order = meta.pk.attname+" ASC"
                     
-            return self._mangle_order_limit_offset(sql, order, int(limit), int(offset))
+            return self._rewrite_limit_offset(sql, order, int(limit), int(offset))
     
-                
         def resolve_columns(self, row, fields=()):
-            # If we're doing a LIMIT/OFFSET query, the resultset
-            # will have an initial "row number" column. We need
-            # do ditch this column before the ORM sees it.
+            # If we're doing a LIMIT/OFFSET query, the resultset will have an
+            # initial "row number" column. We need do ditch this column 
+            # before the ORM sees it.
             if (len(row) == len(fields)+1):
                 return row[1:]
             return row
-            
             
         def as_sql(self, with_limits=True, with_col_aliases=False):
             # Get out of the way if we're not a select query
@@ -106,7 +101,6 @@ def query_class(QueryClass, Database):
 
             raw_sql, fields = super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
             return self._mangle_sql(raw_sql), fields
-
 
         def _insert_as_sql(self, *args, **kwargs):
             meta = self.get_meta()
