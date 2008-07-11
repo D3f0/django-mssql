@@ -4,7 +4,6 @@
 import os
 
 DATABASE_ENGINE = 'sqlserver_ado'
-DATABASE_MSSQL_REGEX = True
 
 DATABASE_HOST =  os.environ['COMPUTERNAME'] + r'\ss2005'
 DATABASE_PORT = ''

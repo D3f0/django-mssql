@@ -1,6 +1,8 @@
 """
-ADO MSSQL database backend for Django.
-Includes adodb_django, based on  adodbapi 2.1: http://adodbapi.sourceforge.net/
+Microsoft SQL Server database backend for Django.
+
+"dbapi.py" is a DB-API 2 interface based on adodbapi 2.1:
+    http://adodbapi.sourceforge.net/
 """
 import re
 
@@ -23,7 +25,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def date_trunc_sql(self, lookup_type, field_name):
     	quoted_field_name = self.quote_name(field_name)
-    	
+
         if lookup_type == 'year':
             return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/01/01')" % quoted_field_name
         if lookup_type == 'month':
@@ -32,7 +34,7 @@ class DatabaseOperations(BaseDatabaseOperations):
             return "Convert(datetime, Convert(varchar(12), %s))" % quoted_field_name
 
     def last_insert_id(self, cursor, table_name, pk_name):
-        cursor.execute("SELECT CAST(IDENT_CURRENT(%s) as bigint)", [self.quote_name(table_name)]) 
+        cursor.execute("SELECT CAST(IDENT_CURRENT(%s) as bigint)", [self.quote_name(table_name)])
         return cursor.fetchone()[0]
 
     def query_class(self, DefaultQueryClass):
@@ -42,7 +44,7 @@ class DatabaseOperations(BaseDatabaseOperations):
         if name.startswith('[') and name.endswith(']'):
             return name # already quoted
         return '[%s]' % name
-        
+
     def random_function_sql(self):
         return 'RAND()'
 
@@ -53,7 +55,9 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def tablespace_sql(self, tablespace, inline=False):
         return "ON %s" % self.quote_name(tablespace)
-
+        
+    def no_limit_value(self):
+        return None
 
 # IP Address recognizer taken from:
 # http://mail.python.org/pipermail/python-list/2006-March/375505.html
@@ -65,7 +69,7 @@ def _looks_like_ipaddress(address):
         if not 0 <= int(item) <= 255:
             return False
     return True
-    
+
 class DatabaseWrapper(BaseDatabaseWrapper):
     features = DatabaseFeatures()
     ops = DatabaseOperations()
@@ -83,34 +87,38 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'istartswith': 'LIKE %s',
         'iendswith': 'LIKE %s',
     }
+    
+    def _config_err(self, message):
+        from django.core.exceptions import ImproperlyConfigured
+        raise ImproperlyConfigured(message)
+        
 
     def _cursor(self, settings):
+        # Connection strings courtesy of:
+        # http://www.connectionstrings.com/?carrier=sqlserver
+
         if self.connection is None:
             if settings.DATABASE_NAME == '':
-                from django.core.exceptions import ImproperlyConfigured
-                raise ImproperlyConfigured("You need to specify a DATABASE_NAME in your Django settings file.")
-                    
+                self._config_err("You need to specify a DATABASE_NAME in your Django settings file.")
+
             datasource = settings.DATABASE_HOST
             if not datasource:
                 datasource = "127.0.0.1"
-            
+
             # If a port is given, force a TCP/IP connection. The host should be an IP address in this case.
-            # Connection string courtesy of:
-            # http://www.connectionstrings.com/?carrier=sqlserver
             if settings.DATABASE_PORT != '':
                 if not _looks_like_ipaddress(datasource):
-                    from django.core.exceptions import ImproperlyConfigured
-                    raise ImproperlyConfigured("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
+                    self._config_err("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
                 datasource += "," + settings.DATABASE_PORT + ";Network Library=DBMSSOCN"
-                
+
             # If no user is specified, default to integrated security.
             if settings.DATABASE_USER != '':
                 auth_string = "UID=%s;PWD=%s" % (settings.DATABASE_USER, settings.DATABASE_PASSWORD)
             else:
                 auth_string = "Integrated Security=SSPI"
-            
+
             conn_string = "PROVIDER=SQLOLEDB;DATA SOURCE=%s;Initial Catalog=%s;%s" % \
                 (datasource, settings.DATABASE_NAME, auth_string)
-                
+
             self.connection = Database.connect(conn_string)
         return Database.Cursor(self.connection)
