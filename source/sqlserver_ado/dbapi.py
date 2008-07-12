@@ -69,8 +69,10 @@ defaultCursorLocation = adUseServer
 _ordinal_1899_12_31 = datetime.date(1899,12,31).toordinal()-1
 _milliseconds_per_day = 24*60*60*1000
 
-# Used for munging string date times (but see Django issue #7560)
-rx_datetime = re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
+# Used for munging string date times until #7560 lands:
+# http://code.djangoproject.com/ticket/7560
+if _enable_django_hacks:
+    rx_datetime = re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
 
 
 def standardErrorHandler(connection, cursor, errorclass, errorvalue):
@@ -562,18 +564,18 @@ ROWID    = _DbType(adoRowIdTypes)
 def _convert_to_python(variant, adType):
     if variant is None: 
         return None
-    return variantConversions[adType](variant)
+    return _variantConversions[adType](variant)
 
-def cvtCurrency((hi, lo), decimal_places=2):
+def _cvtCurrency((hi, lo), decimal_places=2):
     if lo < 0:
         lo += (2L ** 32)
     # was: return round((float((long(hi) << 32) + lo))/10000.0, decimal_places)
     return decimal.Decimal((long(hi) << 32) + lo)/decimal.Decimal(1000)
 
-def cvtNumeric(variant):
+def _cvtNumeric(variant):
 	return _convertNumberWithCulture(variant, decimal.Decimal)
 
-def cvtFloat(variant):
+def _cvtFloat(variant):
     return _convertNumberWithCulture(variant, float)
         
 def _convertNumberWithCulture(variant, f):
@@ -585,7 +587,7 @@ def _convertNumberWithCulture(variant, f):
             return f(europeVsUS)
         except (ValueError,TypeError): pass
 
-def cvtComDate(comDate):
+def _cvtComDate(comDate):
     date_as_float = float(comDate)
     day_count = int(date_as_float)
     fraction_of_day = abs(date_as_float - day_count)
@@ -593,10 +595,10 @@ def cvtComDate(comDate):
     return (datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31) +
         datetime.timedelta(milliseconds=fraction_of_day * _milliseconds_per_day))
 
-variantConversions = MultiMap({
-        adoDateTimeTypes : cvtComDate,
-        adoApproximateNumericTypes: cvtFloat,
-        (adCurrency,): cvtCurrency,
+_variantConversions = MultiMap({
+        adoDateTimeTypes : _cvtComDate,
+        adoApproximateNumericTypes: _cvtFloat,
+        (adCurrency,): _cvtCurrency,
         (adBoolean,): bool,
         adoLongTypes : long,
         adoIntegerTypes+adoRowIdTypes: int,

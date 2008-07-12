@@ -8,6 +8,8 @@ from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDa
 from django.core.exceptions import ImproperlyConfigured
 
 import dbapi as Database
+# Remove this line or set to 'False' if you've patched as in #7560:
+# http://code.djangoproject.com/ticket/7560
 Database._enable_django_hacks = True
 
 import query
@@ -22,10 +24,8 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     allows_unique_and_pk = False
     
     # This is kind of a lie, SQL Server only has 3.33 usec resolution,
-    # and the COM layer seems to be dropping usecs anyway. Plus we need to
-    # hack around dates-as-strings until 7650 lands.
-    # Todo: Investigate using "False" after 7650 lands, and look into the
-    # new date/time handling in SQL Server 2008
+    # and the COM layer seems to be dropping usecs anyway.
+    # Todo: Investigate new date/time handling in SQL Server 2008
     supports_usecs = True
 
 class DatabaseOperations(BaseDatabaseOperations):
