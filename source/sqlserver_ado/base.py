@@ -4,10 +4,12 @@ Microsoft SQL Server database backend for Django.
 "dbapi.py" is a DB-API 2 interface based on adodbapi 2.1:
     http://adodbapi.sourceforge.net/
 """
-import re
-
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations
+from django.core.exceptions import ImproperlyConfigured
+
 import dbapi as Database
+Database._enable_django_hacks = True
+
 import query
 
 DatabaseError = Database.DatabaseError
@@ -18,6 +20,13 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True
     uses_custom_query_class = True
     allows_unique_and_pk = False
+    
+    # This is kind of a lie, SQL Server only has 3.33 usec resolution,
+    # and the COM layer seems to be dropping usecs anyway. Plus we need to
+    # hack around dates-as-strings until 7650 lands.
+    # Todo: Investigate using "False" after 7650 lands, and look into the
+    # new date/time handling in SQL Server 2008
+    supports_usecs = True
 
 class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, field_name):
@@ -29,7 +38,8 @@ class DatabaseOperations(BaseDatabaseOperations):
         if lookup_type == 'year':
             return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/01/01')" % quoted_field_name
         if lookup_type == 'month':
-            return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/' + Convert(varchar, DATEPART(month, %s)) + '/01')" % (quoted_field_name, quoted_field_name)
+            return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/' + Convert(varchar, DATEPART(month, %s)) + '/01')" %\
+                (quoted_field_name, quoted_field_name)
         if lookup_type == 'day':
             return "Convert(datetime, Convert(varchar(12), %s))" % quoted_field_name
 
@@ -88,18 +98,13 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         'iendswith': 'LIKE %s',
     }
     
-    def _config_err(self, message):
-        from django.core.exceptions import ImproperlyConfigured
-        raise ImproperlyConfigured(message)
-        
-
     def _cursor(self, settings):
         # Connection strings courtesy of:
         # http://www.connectionstrings.com/?carrier=sqlserver
 
         if self.connection is None:
             if settings.DATABASE_NAME == '':
-                self._config_err("You need to specify a DATABASE_NAME in your Django settings file.")
+                raise ImproperlyConfigured("You need to specify a DATABASE_NAME in your Django settings file.")
 
             datasource = settings.DATABASE_HOST
             if not datasource:
@@ -108,10 +113,10 @@ class DatabaseWrapper(BaseDatabaseWrapper):
             # If a port is given, force a TCP/IP connection. The host should be an IP address in this case.
             if settings.DATABASE_PORT != '':
                 if not _looks_like_ipaddress(datasource):
-                    self._config_err("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
-                datasource += "," + settings.DATABASE_PORT + ";Network Library=DBMSSOCN"
+                    raise ImproperlyConfigured("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
+                datasource = '%s,%s;Network Library=DBMSSOCN' % (datasource, settings.DATABASE_PORT)
 
-            # If no user is specified, default to integrated security.
+            # If no user is specified, use integrated security.
             if settings.DATABASE_USER != '':
                 auth_string = "UID=%s;PWD=%s" % (settings.DATABASE_USER, settings.DATABASE_PASSWORD)
             else:

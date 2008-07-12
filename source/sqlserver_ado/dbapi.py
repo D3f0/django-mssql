@@ -22,6 +22,10 @@ Version 2.1 by Vernon Cole
 Version 2.1D by Adam Vandenberg (forked for internal Django backend use)
 """
 
+# True to enable "datatypes are strings" hacks for Django compatibility
+# False to disable these hacks for normal DBAPI behavior.
+_enable_django_hacks = False
+
 import sys
 import time
 import datetime
@@ -98,7 +102,7 @@ class IntegrityError(DatabaseError): pass
 class DataError(DatabaseError): pass
 class NotSupportedError(DatabaseError): pass
 
-class DBAPITypeObject:
+class _DbType(object):
     def __init__(self,valuesTuple):
         self.values = valuesTuple
 
@@ -238,13 +242,14 @@ class Connection(object):
 def _configure_parameter(p, value):
     """Configure the given ADO Parameter 'p' with the Python 'value'."""
     if isinstance(value, basestring):
-        s = value
-        # Hack to trim microseconds on iso dates down to 3 decimals
-        try: # ... only if parameter is a datetime string
-            s = rx_datetime.findall(s)[0]
-        except: pass
-        p.Value = s
-        p.Size = len(s)
+        if _enable_django_hacks:
+            # Hack to trim microseconds on iso dates down to 3 decimals
+            try:
+                value = rx_datetime.findall(value)[0]
+            except: pass
+
+        p.Value = value
+        p.Size = len(value)
     
     elif isinstance(value, buffer):
         p.Size = len(value)
@@ -544,21 +549,13 @@ adoStringTypes = (adBSTR,adChar,adLongVarChar,adLongVarWChar,adVarChar,adVarWCha
 adoBinaryTypes = (adBinary, adLongVarBinary, adVarBinary)
 adoDateTimeTypes = (adDBTime, adDBTimeStamp, adDate, adDBDate)
 
-#This type object is used to describe columns in a database that are string-based (e.g. CHAR).
-STRING   = DBAPITypeObject(adoStringTypes)
-
-#This type object is used to describe binary columns in a database (e.g. LONG, RAW, BLOBs).
-BINARY   = DBAPITypeObject(adoBinaryTypes)
-
-#This type object is used to describe numeric columns in a database.
-NUMBER   = DBAPITypeObject((adBoolean,) + adoIntegerTypes + adoLongTypes + adoExactNumericTypes + adoApproximateNumericTypes)
-
-#This type object is used to describe date/time columns in a database.
-DATETIME = DBAPITypeObject(adoDateTimeTypes)
-
-#This type object is used to describe the row id columns in a database.
-#Not very useful for SQL Server, as normal row ids are usually just integers.
-ROWID    = DBAPITypeObject(adoRowIdTypes)
+# Required DBAPI type specifiers
+STRING   = _DbType(adoStringTypes)
+BINARY   = _DbType(adoBinaryTypes)
+NUMBER   = _DbType((adBoolean,) + adoIntegerTypes + adoLongTypes + adoExactNumericTypes + adoApproximateNumericTypes)
+DATETIME = _DbType(adoDateTimeTypes)
+# Not very useful for SQL Server, as normal row ids are usually just integers.
+ROWID    = _DbType(adoRowIdTypes)
 
 
 # Mapping ADO data types to Python objects.
@@ -577,12 +574,7 @@ def cvtNumeric(variant):
 	return _convertNumberWithCulture(variant, decimal.Decimal)
 
 def cvtFloat(variant):
-    converted = _convertNumberWithCulture(variant, float)
-    # If the type is float, but there is no decimal part, then return an integer. 
-    # --Adam V: Why does Django want this?
-    if str(converted)[-2:] == ".0":
-        converted = int(converted)
-    return converted
+    return _convertNumberWithCulture(variant, float)
         
 def _convertNumberWithCulture(variant, f):
     try: 

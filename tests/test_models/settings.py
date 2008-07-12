@@ -1,9 +1,9 @@
 # Django settings for testbackend project.
 def hack_path():
-	import os, sys
-	common_path = os.path.join(os.path.abspath(os.path.dirname(".")), "..")
-	sys.path.append(common_path)
-	
+    import os, sys
+    common_path = os.path.join(os.path.abspath(os.path.dirname(".")), "..")
+    sys.path.append(common_path)
+
 hack_path()
 from dbsettings import *
 
