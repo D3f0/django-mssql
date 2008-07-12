@@ -65,10 +65,6 @@ def query_class(QueryClass, Database):
         def _mangle_sql(self, sql):
             order, limit, offset = _re_order_limit_offset.search(sql).groups()
             
-            # Hack around an issue in [7885], extraneous "OFFSET 0":
-            if limit is None and offset == '0':
-                return _remove_limit_offset(sql)
-            
             # If we have no OFFSET, look for LIMIT and replace with TOP
             if offset is None:
                 if limit is None:
