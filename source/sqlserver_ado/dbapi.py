@@ -24,7 +24,7 @@ Version 2.1D by Adam Vandenberg (forked for internal Django backend use)
 
 # True to enable "datatypes are strings" hacks for Django compatibility
 # False to disable these hacks for normal DBAPI behavior.
-_enable_django_hacks = False
+_enable_django_hacks = True
 
 import sys
 import time

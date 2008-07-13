@@ -8,10 +8,6 @@ from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDa
 from django.core.exceptions import ImproperlyConfigured
 
 import dbapi as Database
-# Remove this line or set to 'False' if you've patched as in #7560:
-# http://code.djangoproject.com/ticket/7560
-Database._enable_django_hacks = True
-
 import query
 
 DatabaseError = Database.DatabaseError
