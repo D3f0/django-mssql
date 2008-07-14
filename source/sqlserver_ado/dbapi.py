@@ -22,10 +22,6 @@ Version 2.1 by Vernon Cole
 Version 2.1D by Adam Vandenberg (forked for internal Django backend use)
 """
 
-# True to enable "datatypes are strings" hacks for Django compatibility
-# False to disable these hacks for normal DBAPI behavior.
-_enable_django_hacks = True
-
 import sys
 import time
 import datetime
@@ -71,8 +67,7 @@ _milliseconds_per_day = 24*60*60*1000
 
 # Used for munging string date times until #7560 lands:
 # http://code.djangoproject.com/ticket/7560
-if _enable_django_hacks:
-    rx_datetime = re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
+rx_datetime = re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
 
 
 def standardErrorHandler(connection, cursor, errorclass, errorvalue):
@@ -164,6 +159,10 @@ class Connection(object):
             self.adoConn.IsolationLevel = defaultIsolationLevel
             self.adoConn.BeginTrans() #Disables autocommit per DBPAI
 
+        # True to enable "datatypes are strings" hacks for Django compatibility
+        # False to disable these hacks for normal DBAPI behavior.
+        self._enable_django_hacks = False
+
     def _raiseConnectionError(self, errorclass, errorvalue):
         eh = self.errorhandler
         if eh is None:
@@ -239,42 +238,6 @@ class Connection(object):
             self._closeAdoConnection()
         except: pass
         self.adoConn = None
-
-
-def _configure_parameter(p, value):
-    """Configure the given ADO Parameter 'p' with the Python 'value'."""
-    if isinstance(value, basestring):
-        if _enable_django_hacks:
-            # Hack to trim microseconds on iso dates down to 3 decimals
-            try:
-                value = rx_datetime.findall(value)[0]
-            except: pass
-
-        p.Value = value
-        p.Size = len(value)
-    
-    elif isinstance(value, buffer):
-        p.Size = len(value)
-        p.AppendChunk(value)
-
-    elif isinstance(value, decimal.Decimal):
-        s = str(elem.normalize())
-        p.Value = elem
-        p.Precision = len(s)
-
-        point = s.find('.')
-        if point == -1:
-            p.NumericScale = 0
-        else:
-            p.NumericScale = len(s)-point
-        
-    else:
-        # For any other type, just set the value and let pythoncom do the right thing.
-        p.Value = value
-    
-    # Use -1 instead of 0 for empty strings and buffers
-    if p.Size == 0: 
-        p.Size = -1
 
 
 class Cursor(object):
@@ -368,6 +331,41 @@ class Cursor(object):
         else:
             self.cmd.CommandType = adCmdText
 
+    def _configure_parameter(self, p, value):
+        """Configure the given ADO Parameter 'p' with the Python 'value'."""
+        if isinstance(value, basestring):
+            if self.connection._enable_django_hacks:
+                # Hack to trim microseconds on iso dates down to 3 decimals
+                try:
+                    value = rx_datetime.findall(value)[0]
+                except: pass
+    
+            p.Value = value
+            p.Size = len(value)
+        
+        elif isinstance(value, buffer):
+            p.Size = len(value)
+            p.AppendChunk(value)
+    
+        elif isinstance(value, decimal.Decimal):
+            s = str(elem.normalize())
+            p.Value = elem
+            p.Precision = len(s)
+    
+            point = s.find('.')
+            if point == -1:
+                p.NumericScale = 0
+            else:
+                p.NumericScale = len(s)-point
+            
+        else:
+            # For any other type, just set the value and let pythoncom do the right thing.
+            p.Value = value
+        
+        # Use -1 instead of 0 for empty strings and buffers
+        if p.Size == 0: 
+            p.Size = -1
+
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
         if self.connection is None:
             self._raiseCursorError(Error, None)
@@ -401,7 +399,7 @@ class Cursor(object):
                 try:
                     for i, value in input_params:
                         p = self.cmd.Parameters(i)
-                        _configure_parameter(p, value)
+                        self._configure_parameter(p, value)
                 except:
                     _parameter_error_message = u'Converting Parameter #%d: %s, %s\n' %\
                         (i, ado_type_name(p.Type), repr(value))
@@ -600,8 +598,8 @@ _variantConversions = MultiMap({
         adoApproximateNumericTypes: _cvtFloat,
         (adCurrency,): _cvtCurrency,
         (adBoolean,): bool,
-        adoLongTypes : long,
-        adoIntegerTypes+adoRowIdTypes: int,
+        adoLongTypes+adoRowIdTypes : long,
+        adoIntegerTypes: int,
         adoBinaryTypes: buffer, }
     , lambda x: x)
 

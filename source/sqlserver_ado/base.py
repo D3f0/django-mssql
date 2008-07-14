@@ -122,4 +122,5 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 (datasource, settings.DATABASE_NAME, auth_string)
 
             self.connection = Database.connect(conn_string)
+            self.connection._enable_django_hacks = True
         return Database.Cursor(self.connection)
