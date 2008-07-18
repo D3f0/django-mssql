@@ -9,7 +9,6 @@ DATA_TYPES = {
     'FileField':         'nvarchar(%(max_length)s)',
     'FilePathField':     'nvarchar(%(max_length)s)',
     'FloatField':        'double precision',
-    'ImageField':        'nvarchar(%(max_length)s)',
     'IntegerField':      'int',
     'IPAddressField':    'nvarchar(15)',
     'NullBooleanField':  'bit',
