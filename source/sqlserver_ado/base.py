@@ -65,6 +65,20 @@ class DatabaseOperations(BaseDatabaseOperations):
     def no_limit_value(self):
         return None
 
+    def prep_for_like_query(self, x):
+        """Prepares a value for use in a LIKE query."""
+        
+        # Should probably just use a regex to do the replace.
+        from django.utils.encoding import smart_unicode
+        return (
+            smart_unicode(x).\
+                replace("\\", "\\\\").\
+                replace("%", "\%").\
+                replace("_", "\_").\
+                replace("[", "\[").\
+                replace("]", "\]")
+            )
+
 # IP Address recognizer taken from:
 # http://mail.python.org/pipermail/python-list/2006-March/375505.html
 def _looks_like_ipaddress(address):
@@ -80,18 +94,18 @@ class DatabaseWrapper(BaseDatabaseWrapper):
     features = DatabaseFeatures()
     ops = DatabaseOperations()
     operators = {
-        'exact': '= %s',
-        'iexact': 'LIKE %s',
-        'contains': 'LIKE %s',
-        'icontains': 'LIKE %s',
-        'gt': '> %s',
-        'gte': '>= %s',
-        'lt': '< %s',
-        'lte': '<= %s',
-        'startswith': 'LIKE %s',
-        'endswith': 'LIKE %s',
-        'istartswith': 'LIKE %s',
-        'iendswith': 'LIKE %s',
+        "exact": "= %s",
+        "iexact": "LIKE %s ESCAPE '\\'",
+        "contains": "LIKE %s ESCAPE '\\'",
+        "icontains": "LIKE %s ESCAPE '\\'",
+        "gt": "> %s",
+        "gte": ">= %s",
+        "lt": "< %s",
+        "lte": "<= %s",
+        "startswith": "LIKE %s ESCAPE '\\'",
+        "endswith": "LIKE %s ESCAPE '\\'",
+        "istartswith": "LIKE %s ESCAPE '\\'",
+        "iendswith": "LIKE %s ESCAPE '\\'",
     }
     
     def _cursor(self, settings):
