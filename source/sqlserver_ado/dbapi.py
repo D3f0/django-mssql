@@ -159,10 +159,6 @@ class Connection(object):
             self.adoConn.IsolationLevel = defaultIsolationLevel
             self.adoConn.BeginTrans() #Disables autocommit per DBPAI
 
-        # True to enable "datatypes are strings" hacks for Django compatibility
-        # False to disable these hacks for normal DBAPI behavior.
-        self._enable_django_hacks = False
-
     def _raiseConnectionError(self, errorclass, errorvalue):
         eh = self.errorhandler
         if eh is None:
@@ -334,22 +330,16 @@ class Cursor(object):
     def _configure_parameter(self, p, value):
         """Configure the given ADO Parameter 'p' with the Python 'value'."""
         if isinstance(value, basestring):
-            if self.connection._enable_django_hacks:
-                # Hack to trim microseconds on iso dates down to 3 decimals
-                try:
-                    value = rx_datetime.findall(value)[0]
-                except: pass
-    
             p.Value = value
             p.Size = len(value)
         
         elif isinstance(value, buffer):
             p.Size = len(value)
             p.AppendChunk(value)
-    
+
         elif isinstance(value, decimal.Decimal):
-            s = str(elem.normalize())
-            p.Value = elem
+            s = str(value.normalize())
+            p.Value = value
             p.Precision = len(s)
     
             point = s.find('.')

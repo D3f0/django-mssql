@@ -18,11 +18,6 @@ class DatabaseFeatures(BaseDatabaseFeatures):
     supports_tablespaces = True
     uses_custom_query_class = True
     allows_unique_and_pk = False
-    
-    # This is kind of a lie, SQL Server only has 3.33 usec resolution,
-    # and the COM layer seems to be dropping usecs anyway.
-    # Todo: Investigate new date/time handling in SQL Server 2008
-    supports_usecs = True
 
 class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, field_name):
@@ -64,6 +59,23 @@ class DatabaseOperations(BaseDatabaseOperations):
         
     def no_limit_value(self):
         return None
+
+    def value_to_db_datetime(self, value):
+        # MS SQL 2005 doesn't support microseconds
+        if value is None:
+            return None
+        return value.replace(microsecond=0)
+    
+    def value_to_db_time(self, value):
+        # MS SQL 2005 doesn't support microseconds
+        if value is None:
+            return None
+        return value.replace(microsecond=0)
+	        
+    def value_to_db_decimal(self, value, max_digits, decimal_places):
+        if value is None:
+            return None
+        return value # Should be a decimal type.
 
     def prep_for_like_query(self, x):
         """Prepares a value for use in a LIKE query."""
@@ -136,5 +148,5 @@ class DatabaseWrapper(BaseDatabaseWrapper):
                 (datasource, settings.DATABASE_NAME, auth_string)
 
             self.connection = Database.connect(conn_string)
-            self.connection._enable_django_hacks = True
+
         return Database.Cursor(self.connection)
