@@ -12,6 +12,17 @@ class BaseModel(models.Model):
         abstract = True
 
 
+class TableNullChar(BaseModel):
+    """
+    >>> obj = TableNullChar(val=None)
+    >>> obj.save()
+    >>> obj = TableNullChar(val="This is my stringt value.")
+    >>> obj.save()
+    >>> len(list(TableNullChar.objects.all()))
+    2
+    """
+    val = models.CharField(null=True, max_length=100)
+    
 class TableNullText(BaseModel):
     """
     >>> obj = TableNullText(val=None)
@@ -117,5 +128,3 @@ class TableNullFloat(BaseModel):
     2
     """
     val = models.FloatField(null=True)
-
-all_tables = (TableNullText, TableNullInteger, TableNullDateTime, TableNullDate, TableNullTime, TableNullBoolean, TableNullNullBoolean, TableNullDecimal, TableNullFloat)
