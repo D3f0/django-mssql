@@ -68,6 +68,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     
     def value_to_db_time(self, value):
         # MS SQL 2005 doesn't support microseconds
+        #...But it also doesn't really suport bare times
         if value is None:
             return None
         return value.replace(microsecond=0)
