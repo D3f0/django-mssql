@@ -4,11 +4,14 @@ Microsoft SQL Server database backend for Django.
 "dbapi.py" is a DB-API 2 interface based on adodbapi 2.1:
     http://adodbapi.sourceforge.net/
 """
-from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations
+from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations, BaseDatabaseValidation
 from django.core.exceptions import ImproperlyConfigured
 
 import dbapi as Database
+
 import query
+from introspection import DatabaseIntrospection
+from creation import DatabaseCreation
 
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError
@@ -104,8 +107,6 @@ def _looks_like_ipaddress(address):
     return True
 
 class DatabaseWrapper(BaseDatabaseWrapper):
-    features = DatabaseFeatures()
-    ops = DatabaseOperations()
     operators = {
         "exact": "= %s",
         "iexact": "LIKE %s ESCAPE '\\'",
@@ -120,7 +121,19 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "istartswith": "LIKE %s ESCAPE '\\'",
         "iendswith": "LIKE %s ESCAPE '\\'",
     }
-    
+
+    def __init__(self, **kwargs):
+        super(DatabaseWrapper, self).__init__(**kwargs)
+        
+        self.features = DatabaseFeatures()
+        self.ops = DatabaseOperations()
+        
+        #client = DatabaseClient() 
+        self.creation = DatabaseCreation(self) 
+        self.introspection = DatabaseIntrospection(self)
+        self.validation = BaseDatabaseValidation()
+        
+            
     def _cursor(self, settings):
         # Connection strings courtesy of:
         # http://www.connectionstrings.com/?carrier=sqlserver

@@ -72,11 +72,11 @@ class TableNullTime(BaseModel):
     This test isn't expected to work on SQL Server 2005,
     as there is no bare "time" type.
     
-    >>> obj = TableNullTime(val=None)
-    >>> obj.save()
-    >>> obj = TableNullTime(val=datetime.time(2,34,2))
-    >>> obj.save()
-    >>> len(list(TableNullTime.objects.all()))
+    obj = TableNullTime(val=None)
+    obj.save()
+    obj = TableNullTime(val=datetime.time(2,34,2))
+    obj.save()
+    len(list(TableNullTime.objects.all()))
     2
     """
     val = models.TimeField(null=True)

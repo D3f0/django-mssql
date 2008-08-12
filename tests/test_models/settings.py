@@ -7,7 +7,6 @@ def hack_path():
 hack_path()
 from dbsettings import *
 
-
 DEBUG = True
 TEMPLATE_DEBUG = DEBUG
 
