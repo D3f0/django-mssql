@@ -77,9 +77,9 @@ class DatabaseOperations(BaseDatabaseOperations):
         return value.replace(microsecond=0)
 	        
     def value_to_db_decimal(self, value, max_digits, decimal_places):
-        if value is None:
+        if value is None or value == '':
             return None
-        return value # Should be a decimal type.
+        return value # Should be a decimal type (or string)
 
     def prep_for_like_query(self, x):
         """Prepares a value for use in a LIKE query."""

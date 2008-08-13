@@ -1,8 +1,6 @@
-from django.db import models
 import datetime
-from decimal import Decimal as d
-
-# Todo: Investigate what the difference between Boolean and NullBoolean is...
+import decimal
+from django.db import models
 
 class BaseModel(models.Model):
     def __unicode__(self):
@@ -111,7 +109,7 @@ class TableNullDecimal(BaseModel):
     """
     >>> obj = TableNullDecimal(val=None)
     >>> obj.save()
-    >>> obj = TableNullDecimal(val=d('34.2'))
+    >>> obj = TableNullDecimal(val=decimal.Decimal('34.2'))
     >>> obj.save()
     >>> len(list(TableNullDecimal.objects.all()))
     2
@@ -131,6 +129,8 @@ class TableNullFloat(BaseModel):
     
 class Bug23Table(models.Model):
     """
+    Test inserting mixed NULL and non-NULL values.
+    
     >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=1)
     >>> obj.save()
     >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=1)
@@ -158,3 +158,17 @@ class Bug23Table(models.Model):
     mycharfield1 = models.CharField(max_length=100, null=True)
     mycharfield2 = models.CharField(max_length=50, null=True)
     myintfield = models.IntegerField(null=True)
+
+class Bug21Table(models.Model):
+    """
+    Test adding decimals as actual types or as strings.
+    
+    >>> obj = Bug21Table(a='decimal as decimal', d=decimal.Decimal('12.34'))
+    >>> obj.save()
+    >>> obj = Bug21Table(a='decimal as string', d=u'56.78')
+    >>> obj.save()
+    >>> len(list(Bug21Table.objects.all()))
+    2
+    """
+    a = models.CharField(max_length=50)
+    d = models.DecimalField(max_digits=5, decimal_places=2)
