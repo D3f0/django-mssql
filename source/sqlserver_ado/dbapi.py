@@ -29,13 +29,16 @@ import re
 
 try:
     import decimal
-except ImportError: # for Python 2.3
+except ImportError:
     from django.utils import _decimal as decimal
 
-from win32com.client import Dispatch
+import win32com.client
 
+# The next two code lines request Decimal python types for
+# ADO currency values. This does not affect SQL decimal/numeric
+# types, which come back as strings.
 import pythoncom
-pythoncom.__future_currency__ = True # Request Python decimal from COM layer
+pythoncom.__future_currency__ = True
 
 from ado_consts import *
 from util import MultiMap
@@ -111,7 +114,7 @@ def connect(connection_string, timeout=30):
     timeout -- A command timeout value, in seconds (default 30 seconds)
     """
     pythoncom.CoInitialize()
-    c = Dispatch('ADODB.Connection')
+    c = win32com.client.Dispatch('ADODB.Connection')
     c.CommandTimeout = timeout
     c.ConnectionString = connection_string
 
@@ -314,7 +317,7 @@ class Cursor(object):
             self.rs = None
 
     def _new_command(self, sproc_call):
-        self.cmd = Dispatch("ADODB.Command")
+        self.cmd = win32com.client.Dispatch("ADODB.Command")
         self.cmd.ActiveConnection = self.connection.adoConn
         self.cmd.CommandTimeout = self.connection.adoConn.CommandTimeout
 
@@ -549,9 +552,6 @@ def _cvtCurrency((hi, lo), decimal_places=2):
     if lo < 0:
         lo += (2L ** 32)
     return decimal.Decimal((long(hi) << 32) + lo)/decimal.Decimal(1000)
-
-def _cvtNumeric(variant):
-	return _convertNumberWithCulture(variant, decimal.Decimal)
 
 def _cvtFloat(variant):
     return _convertNumberWithCulture(variant, float)
