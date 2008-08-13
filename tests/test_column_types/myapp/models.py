@@ -109,8 +109,11 @@ class TableNullDecimal(BaseModel):
     """
     >>> obj = TableNullDecimal(val=None)
     >>> obj.save()
-    >>> obj = TableNullDecimal(val=decimal.Decimal('34.2'))
+    
+    Try a value at the top end of the specified precision/scale
+    >>> obj = TableNullDecimal(val=decimal.Decimal('99.99'))
     >>> obj.save()
+    
     >>> len(list(TableNullDecimal.objects.all()))
     2
     """
