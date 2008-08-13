@@ -1,14 +1,9 @@
-"""
-Microsoft SQL Server database backend for Django.
+"""Microsoft SQL Server database backend for Django."""
+from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations, BaseDatabaseValidation, BaseDatabaseClient
 
-"dbapi.py" is a DB-API 2 interface based on adodbapi 2.1:
-    http://adodbapi.sourceforge.net/
-"""
-from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations, BaseDatabaseValidation
 from django.core.exceptions import ImproperlyConfigured
 
 import dbapi as Database
-
 import query
 from introspection import DatabaseIntrospection
 from creation import DatabaseCreation
@@ -18,9 +13,7 @@ IntegrityError = Database.IntegrityError
 
 
 class DatabaseFeatures(BaseDatabaseFeatures):
-    supports_tablespaces = True
     uses_custom_query_class = True
-    allows_unique_and_pk = False
 
 class DatabaseOperations(BaseDatabaseOperations):
     def date_extract_sql(self, lookup_type, field_name):
@@ -71,7 +64,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     
     def value_to_db_time(self, value):
         # MS SQL 2005 doesn't support microseconds
-        #...But it also doesn't really suport bare times
+        #...but it also doesn't really suport bare times
         if value is None:
             return None
         return value.replace(microsecond=0)
@@ -83,8 +76,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
     def prep_for_like_query(self, x):
         """Prepares a value for use in a LIKE query."""
-        
-        # Should probably just use a regex to do the replace.
+        # To-do: Use a regex to do the replace?
         from django.utils.encoding import smart_unicode
         return (
             smart_unicode(x).\
@@ -128,7 +120,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.features = DatabaseFeatures()
         self.ops = DatabaseOperations()
         
-        #client = DatabaseClient() 
+        self.client = BaseDatabaseClient()
         self.creation = DatabaseCreation(self) 
         self.introspection = DatabaseIntrospection(self)
         self.validation = BaseDatabaseValidation()
