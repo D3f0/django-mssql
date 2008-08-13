@@ -11,7 +11,7 @@ class DatabaseCreation(BaseDatabaseCreation):
         'CommaSeparatedIntegerField': 'nvarchar(%(max_length)s)',
         'DateField':         'datetime',
         'DateTimeField':     'datetime',
-        'DecimalField':      'numeric(%(max_digits)s, %(decimal_places)s)',
+        'DecimalField':      'decimal(%(max_digits)s, %(decimal_places)s)',
         'FileField':         'nvarchar(%(max_length)s)',
         'FilePathField':     'nvarchar(%(max_length)s)',
         'FloatField':        'double precision',

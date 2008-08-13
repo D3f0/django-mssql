@@ -18,8 +18,11 @@ You should have received a copy of the GNU Lesser General Public
 License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
 
-Version 2.1 by Vernon Cole
-Version 2.1D by Adam Vandenberg (forked for internal Django backend use)
+* Version 2.1 by Vernon Cole
+* Version 2.1D by Adam Vandenberg (forked for internal Django backend use)
+  Note that this file acts as a db-api 2 interface for ADO, but is rather 
+  SQL Server and Django specific now, and probaby won't work against other 
+  ADO backends anymore.
 """
 
 import sys
@@ -596,7 +599,7 @@ _map_to_adotype = {
     int: adInteger,
     long: adBigInt,
     bool: adBoolean,
-    decimal.Decimal: adNumeric,
+    decimal.Decimal: adDecimal,
     datetime.date: adDate,
     datetime.datetime: adDate,
     datetime.time: adDate, }

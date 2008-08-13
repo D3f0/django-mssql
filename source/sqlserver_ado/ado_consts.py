@@ -1,4 +1,8 @@
+# ADO enumerated constants documented on MSDN:
+# http://msdn.microsoft.com/en-us/library/ms678353(VS.85).aspx
+
 # IsolationLevelEnum
+adXactUnspecified     = -1
 adXactBrowse          = 0x100
 adXactChaos           = 0x10
 adXactCursorStability = 0x1000
@@ -8,16 +12,13 @@ adXactReadUncommitted = 0x100
 adXactRepeatableRead  = 0x10000
 adXactSerializable    = 0x100000
 
-
 # CursorLocationEnum
 adUseClient = 3
 adUseServer = 2
 
-
 # CommandTypeEnum
 adCmdText = 1
 adCmdStoredProc = 4
-
 
 # ParameterDirectionEnum
 adParamInput       = 1
@@ -26,35 +27,28 @@ adParamOutput      = 2
 adParamReturnValue = 4
 adParamUnknown     = 0
 
-
 # ObjectStateEnum
-adStateClosed     = 0 # Indicates that the object is closed. 
-adStateOpen       = 1 # Indicates that the object is open. 
-adStateConnecting = 2 # Indicates that the object is connecting. 
-adStateExecuting  = 4 # Indicates that the object is executing a command. 
-adStateFetching   = 8 # Indicates that the rows of the object are being retrieved.
-
+adStateClosed     = 0
+adStateOpen       = 1
+adStateConnecting = 2
+adStateExecuting  = 4
+adStateFetching   = 8
 
 # FieldAttributeEnum
 adFldMayBeNull = 0x40
 
-
 # ConnectModeEnum
+# To-do: Add the other adMode consts or remove this definition
 adModeShareExclusive = 12
-
 
 # XactAttributeEnum
 adXactCommitRetaining = 131072
 adXactAbortRetaining = 262144
 
-
 ado_error_TIMEOUT = -2147217871
 
-
-# ADO Data types documented at:
+# DataTypeEnum - ADO Data types documented at:
 # http://msdn2.microsoft.com/en-us/library/ms675318.aspx
-
-# DataTypeEnum
 adArray                       = 0x2000
 adEmpty                       = 0x0
 adBSTR                        = 0x8
