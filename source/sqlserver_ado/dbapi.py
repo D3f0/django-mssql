@@ -65,10 +65,6 @@ defaultCursorLocation = adUseServer
 _ordinal_1899_12_31 = datetime.date(1899,12,31).toordinal()-1
 _milliseconds_per_day = 24*60*60*1000
 
-# Used for munging string date times until #7560 lands:
-# http://code.djangoproject.com/ticket/7560
-rx_datetime = re.compile(r'^(\d{4}-\d\d?-\d\d? \d\d?:\d\d?:\d\d?.\d{3})\d{3}$')
-
 
 def standardErrorHandler(connection, cursor, errorclass, errorvalue):
     err = (errorclass, errorvalue)
