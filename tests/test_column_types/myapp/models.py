@@ -16,7 +16,7 @@ class TableNullChar(BaseModel):
     """
     >>> obj = TableNullChar(val=None)
     >>> obj.save()
-    >>> obj = TableNullChar(val="This is my stringt value.")
+    >>> obj = TableNullChar(val="This is my string value.")
     >>> obj.save()
     >>> len(list(TableNullChar.objects.all()))
     2
@@ -27,7 +27,7 @@ class TableNullText(BaseModel):
     """
     >>> obj = TableNullText(val=None)
     >>> obj.save()
-    >>> obj = TableNullText(val="This is my stringt value.")
+    >>> obj = TableNullText(val="This is my string value.")
     >>> obj.save()
     >>> len(list(TableNullText.objects.all()))
     2
@@ -128,3 +128,33 @@ class TableNullFloat(BaseModel):
     2
     """
     val = models.FloatField(null=True)
+    
+class Bug23Table(models.Model):
+    """
+    >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=1)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=1)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2="text2", myintfield=None)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=1)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=None)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=None)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=None)
+    >>> obj.save()
+    >>> objs = list(Bug23Table.objects.all())
+    >>> len(objs)
+    7
+    >>> len([obj for obj in objs if obj.mycharfield1=="text1"])
+    3
+    >>> len([obj for obj in objs if obj.mycharfield2=="text2"])
+    3
+    >>> len([obj for obj in objs if obj.myintfield==1])
+    3
+    """
+    mycharfield1 = models.CharField(max_length=100, null=True)
+    mycharfield2 = models.CharField(max_length=50, null=True)
+    myintfield = models.IntegerField(null=True)

@@ -329,6 +329,9 @@ class Cursor(object):
 
     def _configure_parameter(self, p, value):
         """Configure the given ADO Parameter 'p' with the Python 'value'."""
+        if p.Direction not in [adParamInput, adParamInputOutput, adParamUnknown]:
+            return
+        
         if isinstance(value, basestring):
             p.Value = value
             p.Size = len(value)
@@ -365,35 +368,27 @@ class Cursor(object):
 
         try:
             self._new_command(isStoredProcedureCall)
-
             if parameters is not None:
-                # This will be a list of (parameter index, python value) tuples.
-                input_params = list()
-        
                 parameter_replacements = list()
-                for i,value in enumerate(parameters):
+                for i, value in enumerate(parameters):
                     if value is None:
                         parameter_replacements.append('NULL')
-                    else:
-                        parameter_replacements.append('?')
-                        p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
-                        self.cmd.Parameters.Append(p)
-                        
-                        if p.Direction in [adParamInput, adParamInputOutput, adParamUnknown]:
-                            input_params.append( (i, value) )
+                        continue
+
+                    # Otherwise, process the non-NULL parameter.
+                    parameter_replacements.append('?')
+                    p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
+                    try:
+                        self._configure_parameter(p, value)
+                    except:
+                        _parameter_error_message = u'Converting Parameter %s: %s, %s\n' %\
+                            (p.Name, ado_type_name(p.Type), repr(value))
+                        raise
+                    self.cmd.Parameters.Append(p)
 
                 # Use literal NULLs in raw queries, but not sproc calls.                            
                 if not isStoredProcedureCall:
                     operation = operation % tuple(parameter_replacements)
-
-                try:
-                    for i, value in input_params:
-                        p = self.cmd.Parameters(i)
-                        self._configure_parameter(p, value)
-                except:
-                    _parameter_error_message = u'Converting Parameter #%d: %s, %s\n' %\
-                        (i, ado_type_name(p.Type), repr(value))
-                    raise
 
             self.cmd.CommandText = operation
             recordset = self.cmd.Execute()
@@ -557,7 +552,6 @@ def _convert_to_python(variant, adType):
 def _cvtCurrency((hi, lo), decimal_places=2):
     if lo < 0:
         lo += (2L ** 32)
-    # was: return round((float((long(hi) << 32) + lo))/10000.0, decimal_places)
     return decimal.Decimal((long(hi) << 32) + lo)/decimal.Decimal(1000)
 
 def _cvtNumeric(variant):
