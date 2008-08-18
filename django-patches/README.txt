@@ -1,4 +1,3 @@
-This folder contains any patches needed against Django itself.
+This folder contains any patches that should be applied against Django.
 
-7504-handle-table-name-spaces.diff
-* Patches inspectdb to handle table names with spaces.
+* As of Django 1.0-beta, there are no patches needed by this back-end.
