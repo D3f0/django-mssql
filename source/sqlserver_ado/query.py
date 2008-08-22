@@ -52,6 +52,7 @@ def query_class(QueryClass, Database):
             
             final_sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as my_row_number, %s) as QQQ where my_row_number between %s and %s" % ( order, inner_sql, low, high)
             
+            self._using_row_number = True
             return final_sql
             
         def _replace_limit_with_top(self, sql, limit):
@@ -82,7 +83,7 @@ def query_class(QueryClass, Database):
             # If we're doing a LIMIT/OFFSET query, the resultset will have an
             # initial "row number" column. We need do ditch this column 
             # before the ORM sees it.
-            if (len(row) == len(fields)+1):
+            if self._using_row_number:
                 return row[1:]
             return row
             
@@ -91,6 +92,7 @@ def query_class(QueryClass, Database):
             if self.__class__.__name__ != 'SqlServerQuery':
                 return super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
 
+            self._using_row_number = False
             raw_sql, fields = super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
             return self._mangle_sql(raw_sql), fields
 

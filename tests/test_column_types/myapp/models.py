@@ -175,3 +175,23 @@ class Bug21Table(models.Model):
     """
     a = models.CharField(max_length=50)
     d = models.DecimalField(max_digits=5, decimal_places=2)
+
+class Bug27Table(models.Model):
+    """
+    Test that extra/select works, and doesn't interfere with the 
+    limit/offset implementation.
+    
+    >>> Bug27Table(a=100).save()
+    >>> Bug27Table(a=101).save()
+    >>> len(list(Bug27Table.objects.all()))
+    2
+    
+    >>> objs = list(Bug27Table.objects.extra(select={'alias_for_a':'a'}).order_by('a'))
+    >>> objs[0].alias_for_a
+    100
+
+    >>> objs[1].alias_for_a
+    101
+    """
+    
+    a = models.IntegerField()
