@@ -125,7 +125,7 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.introspection = DatabaseIntrospection(self)
         self.validation = BaseDatabaseValidation()
         
-            
+
     def _cursor(self, settings):
         # Connection strings courtesy of:
         # http://www.connectionstrings.com/?carrier=sqlserver
