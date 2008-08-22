@@ -1,8 +1,0 @@
-[
-	{"pk": 1, "model": "myapp.choice", "fields": {"choice": "banana"}}, 
-	{"pk": 2, "model": "myapp.choice", "fields": {"choice": "apple pie"}}, 
-	{"pk": 3, "model": "myapp.choice", "fields": {"choice": "lemon pie"}}, 
-	{"pk": 4, "model": "myapp.choice", "fields": {"choice": "Cananda"}}, 
-	{"pk": 5, "model": "myapp.choice", "fields": {"choice": "bandana"}}, 
-	{"pk": 6, "model": "myapp.choice", "fields": {"choice": "apple fritters"}}
-]

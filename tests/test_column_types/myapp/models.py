@@ -129,7 +129,44 @@ class TableNullFloat(BaseModel):
     2
     """
     val = models.FloatField(null=True)
+
+
+class Bug19Table(models.Model):
+    """ A simple model for testing string comparisons.
     
+    >>> choices = (
+    ...     "no_slashes", "no_slashes_2",
+    ...     r"C:\some_folder\somefile.ext", r"\some_folder",
+    ...     "some_folder"+'\',
+    ...     "[brackets]",
+    ...     )
+    >>> for c in choices:
+    ...     Bug19Table.objects.create(choice=c).save()
+    >>> len(Bug19Table.objects.all())
+    6    
+
+    >>> len(Bug19Table.objects.filter(choice__contains="shes"))
+    2
+    
+    >>> len(Bug19Table.objects.filter(choice__endswith="shes"))
+    1
+    
+    >>> len(Bug19Table.objects.filter(choice__contains=r"der\som"))
+    1
+    
+    >>> len(Bug19Table.objects.filter(choice__endswith=r"der\somefile.ext"))
+    1
+    
+    >>> len(Bug19Table.objects.filter(choice__contains="["))
+    1
+    
+    """
+    choice = models.TextField(max_length=200)
+    
+    def __unicode__(self):
+        return self.choice
+
+
 class Bug23Table(models.Model):
     """
     Test inserting mixed NULL and non-NULL values.
