@@ -77,5 +77,10 @@ INSTALLED_APPS = (
     'django.contrib.contenttypes',
     'django.contrib.sessions',
     'django.contrib.sites',
+    
+    # Include a sample user app
+    'myapp',
+    
+    # Include our custom commands
     'sql_app',
 )
