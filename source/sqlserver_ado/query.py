@@ -16,8 +16,6 @@ import re
 # The goal here is to be able to override some "InsertQuery" behavior,
 # so we check the most-derived type name and replace a method if it is
 # "InsertQuery".
-#
-# Seems fragile, but less so than monkeypatching Django's guts.
 
 _re_order_limit_offset = \
     re.compile(r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
@@ -44,6 +42,7 @@ def query_class(QueryClass, Database):
         def _rewrite_limit_offset(self, sql, order, limit, offset):
             # Lop off the ORDER BY ... LIMIT ... OFFSET ...
             sql_without_ORDER = _re_order_limit_offset.sub('',sql)
+            
             # Lop off the initial "SELECT"
             inner_sql = sql_without_ORDER.split(None, 1)[1]
             
@@ -75,7 +74,8 @@ def query_class(QueryClass, Database):
             # Otherwise we have an OFFSET, synthesize an ordering if needed
             if order is None:
                 meta = self.get_meta()
-                order = meta.pk.attname+" ASC"
+                qn = self.connection.ops.quote_name
+                order = '%s.%s ASC' % (qn(meta.db_table), qn(meta.pk.attname))
                     
             return self._rewrite_limit_offset(sql, order, int(limit), int(offset))
     
