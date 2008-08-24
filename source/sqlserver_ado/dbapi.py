@@ -72,6 +72,23 @@ _ordinal_1899_12_31 = datetime.date(1899,12,31).toordinal()-1
 _milliseconds_per_day = 24*60*60*1000
 
 
+class MultiMap(object):
+    def __init__(self, mapping, default=None):
+        """Defines a mapping with multiple keys per value.
+        
+        mapping is a dict of: tuple(key, key, key...) => value
+        """
+        self.storage = dict()
+        self.default = default
+        
+        for keys, value in mapping.iteritems():
+            for key in keys:
+                self.storage[key] = value
+
+    def __getitem__(self, key):
+        return self.storage.get(key, self.default)
+
+
 def standardErrorHandler(connection, cursor, errorclass, errorvalue):
     err = (errorclass, errorvalue)
     connection.messages.append(err)
@@ -147,6 +164,38 @@ def format_parameters(parameters):
         for p in parameters]
     
     return '[' + ', '.join(desc) + ']'
+
+def _configure_parameter(p, value):
+    """Configure the given ADO Parameter 'p' with the Python 'value'."""
+    if p.Direction not in [adParamInput, adParamInputOutput, adParamUnknown]:
+        return
+    
+    if isinstance(value, basestring):
+        p.Value = value
+        p.Size = len(value)
+    
+    elif isinstance(value, buffer):
+        p.Size = len(value)
+        p.AppendChunk(value)
+
+    elif isinstance(value, decimal.Decimal):
+        s = str(value.normalize())
+        p.Value = value
+        p.Precision = len(s)
+
+        point = s.find('.')
+        if point == -1:
+            p.NumericScale = 0
+        else:
+            p.NumericScale = len(s)-point
+        
+    else:
+        # For any other type, just set the value and let pythoncom do the right thing.
+        p.Value = value
+    
+    # Use -1 instead of 0 for empty strings and buffers
+    if p.Size == 0: 
+        p.Size = -1
 
 
 class Connection(object):
@@ -329,71 +378,47 @@ class Cursor(object):
         else:
             self.cmd.CommandType = adCmdText
 
-    def _configure_parameter(self, p, value):
-        """Configure the given ADO Parameter 'p' with the Python 'value'."""
-        if p.Direction not in [adParamInput, adParamInputOutput, adParamUnknown]:
-            return
-        
-        if isinstance(value, basestring):
-            p.Value = value
-            p.Size = len(value)
-        
-        elif isinstance(value, buffer):
-            p.Size = len(value)
-            p.AppendChunk(value)
-
-        elif isinstance(value, decimal.Decimal):
-            s = str(value.normalize())
-            p.Value = value
-            p.Precision = len(s)
-    
-            point = s.find('.')
-            if point == -1:
-                p.NumericScale = 0
-            else:
-                p.NumericScale = len(s)-point
-            
-        else:
-            # For any other type, just set the value and let pythoncom do the right thing.
-            p.Value = value
-        
-        # Use -1 instead of 0 for empty strings and buffers
-        if p.Size == 0: 
-            p.Size = -1
-
     def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
         if self.connection is None:
             self._raiseCursorError(Error, None)
             return
 
         _parameter_error_message = ''
+        parameter_replacements = list()
+        if parameters is None:
+            parameters = list()
 
         try:
             self._new_command(isStoredProcedureCall)
-            if parameters is not None:
-                parameter_replacements = list()
-                for i, value in enumerate(parameters):
-                    if value is None:
-                        parameter_replacements.append('NULL')
-                        continue
+            for i, value in enumerate(parameters):
+                if value is None:
+                    parameter_replacements.append('NULL')
+                    continue
 
-                    # Otherwise, process the non-NULL parameter.
-                    parameter_replacements.append('?')
-                    p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
-                    try:
-                        self._configure_parameter(p, value)
-                    except:
-                        _parameter_error_message = u'Converting Parameter %s: %s, %s\n' %\
-                            (p.Name, ado_type_name(p.Type), repr(value))
-                        raise
-                    self.cmd.Parameters.Append(p)
+                # Otherwise, process the non-NULL parameter.
+                parameter_replacements.append('?')
+                p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
+                try:
+                    _configure_parameter(p, value)
+                except:
+                    _parameter_error_message = u'Converting Parameter %s: %s, %s\n' %\
+                        (p.Name, ado_type_name(p.Type), repr(value))
+                    raise
 
-                # Use literal NULLs in raw queries, but not sproc calls.                            
-                if not isStoredProcedureCall:
-                    operation = operation % tuple(parameter_replacements)
+                self.cmd.Parameters.Append(p)
+
+            # Use literal NULLs in raw queries, but not sproc calls.                            
+            if not isStoredProcedureCall and parameter_replacements:
+                operation = operation % tuple(parameter_replacements)
 
             self.cmd.CommandText = operation
             recordset = self.cmd.Execute()
+
+            self.rowcount=recordset[1]  # May be -1 if NOCOUNT is set.
+            self._description_from_recordset(recordset[0])
+    
+            if isStoredProcedureCall and parameters != None:
+                return self._returnADOCommandParameters(self.cmd)
 
         except:
             import traceback
@@ -407,12 +432,6 @@ class Cursor(object):
             	(stack_trace, _parameter_error_message, operation, ado_params, parameters)
             self._raiseCursorError(DatabaseError, new_error_message)
             return
-
-        self.rowcount=recordset[1]  # May be -1 if NOCOUNT is set.
-        self._description_from_recordset(recordset[0])
-
-        if isStoredProcedureCall and parameters != None:
-            return self._returnADOCommandParameters(self.cmd)
 
     def execute(self, operation, parameters=None):
         "Prepare and execute a database operation (query or command)."

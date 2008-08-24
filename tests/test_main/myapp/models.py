@@ -234,6 +234,40 @@ class Bug27Table(models.Model):
     a = models.IntegerField()
 
 
+class Products(models.Model):
+    """
+    >>> names=['Screws', 'Bolts', 'Nuts', 'S-Pipe', 'L-Pipe', 'Item', 'Zebra']
+    >>> for n in names: product = Products.objects.create(name=n)
+    >>> p = Products.objects
+    >>> len(list(p.all()))
+    7
+    >>> len(list(p.all()[:3]))
+    3
+    >>> len(list(p.all()[2:5]))
+    3
+    >>> len(list(p.all()[5:]))
+    3
+    >>> len(list(p.order_by('name')))
+    7
+    >>> len(list(p.order_by('name')[:3]))
+    3
+    >>> len(list(p.order_by('name')[2:5]))
+    3
+    >>> len(list(p.order_by('name')[5:]))
+    3
+    """
+
+    productid = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=50)
+        
+    def __repr__(self):
+        return "<Product %s: %s>" % (self.productid, self.name)
+        
+    def __unicode__(self):
+        return u"<Product %s: %s>" % (self.productid, self.name)
+
+
+
 class RelatedB(models.Model):
     a = models.CharField(max_length=50)
     b = models.CharField(max_length=50)
@@ -242,16 +276,16 @@ class RelatedB(models.Model):
 
 class RelatedA(models.Model):
     """
-    >>> b = RelatedB(a='this is a value', b="valueb", c="valuec")
-    >>> b.save()
-    >>> a = RelatedA(a="valuea", b=b)
-    >>> a.save()
-    >>> a = RelatedA(a="valuea", b=b)
-    >>> a.save()
-    >>> items = RelatedA.objects.select_related()[1:2]
-    >>> len(items)
-    1
+    #>>> b = RelatedB(a='this is a value', b="valueb", c="valuec")
+    #>>> b.save()
+    #>>> a = RelatedA(a="valuea", b=b)
+    #>>> a.save()
+    #>>> a = RelatedA(a="valuea", b=b)
+    #>>> a.save()
+    #>>> items = RelatedA.objects.select_related()[1:2]
+    #>>> len(items)
+    #1
     """
     a = models.CharField(max_length=50)
     b = models.ForeignKey(RelatedB)
-    
+

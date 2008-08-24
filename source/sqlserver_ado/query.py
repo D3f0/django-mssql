@@ -40,19 +40,24 @@ def query_class(QueryClass, Database):
 
 
         def _rewrite_limit_offset(self, sql, order, limit, offset):
+            self._using_row_number = True
+
             # Lop off the ORDER BY ... LIMIT ... OFFSET ...
             sql_without_ORDER = _re_order_limit_offset.sub('',sql)
             
             # Lop off the initial "SELECT"
             inner_sql = sql_without_ORDER.split(None, 1)[1]
             
+            #print inner_sql
+            # ... need to relabel columns in case of duplicate column names?
+            # ...
+            
             low = offset + 1
             high = low + limit - 1
             
-            final_sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as my_row_number, %s) as QQQ where my_row_number between %s and %s" % ( order, inner_sql, low, high)
-            
-            self._using_row_number = True
-            return final_sql
+            # todo - support offset w/ no limit
+            where = "my_row_number between %s and %s" % (low, high)
+            return "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as my_row_number, %s) as QQQ where %s" % (order, inner_sql, where)
             
         def _replace_limit_with_top(self, sql, limit):
             # Lop off any LIMIT... from the query
@@ -88,12 +93,18 @@ def query_class(QueryClass, Database):
             return row
             
         def as_sql(self, with_limits=True, with_col_aliases=False):
+            raw_sql, fields = super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
+            
             # Get out of the way if we're not a select query
             if self.__class__.__name__ != 'SqlServerQuery':
-                return super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
+                return raw_sql, fields
+                
+            # Don't mangle anything if there are no limits involved
+            #do_offset = with_limits and (self.high_mark is not None or self.low_mark)
+            if not with_limits:
+                return raw_sql, fields
 
             self._using_row_number = False
-            raw_sql, fields = super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
             return self._mangle_sql(raw_sql), fields
 
         def _insert_as_sql(self, *args, **kwargs):
