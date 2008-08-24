@@ -232,3 +232,26 @@ class Bug27Table(models.Model):
     """
     
     a = models.IntegerField()
+
+
+class RelatedB(models.Model):
+    a = models.CharField(max_length=50)
+    b = models.CharField(max_length=50)
+    c = models.CharField(max_length=50)
+
+
+class RelatedA(models.Model):
+    """
+    >>> b = RelatedB(a='this is a value', b="valueb", c="valuec")
+    >>> b.save()
+    >>> a = RelatedA(a="valuea", b=b)
+    >>> a.save()
+    >>> a = RelatedA(a="valuea", b=b)
+    >>> a.save()
+    >>> items = RelatedA.objects.select_related()[1:2]
+    >>> len(items)
+    1
+    """
+    a = models.CharField(max_length=50)
+    b = models.ForeignKey(RelatedB)
+    
