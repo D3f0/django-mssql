@@ -63,7 +63,7 @@ def query_class(QueryClass, Database):
                 raw_sql = (' TOP %s ' % self.high_mark).join(sql_parts)
                 return raw_sql, fields
                 
-            # Else we limits; rewrite the query using ROW_NUMBER()
+            # Else we have limits; rewrite the query using ROW_NUMBER()
             self._using_row_number = True
 
             order, limit, offset = _get_order_limit_offset(raw_sql)
