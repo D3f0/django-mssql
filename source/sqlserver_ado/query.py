@@ -34,7 +34,6 @@ def query_class(QueryClass, Database):
     class SqlServerQuery(QueryClass):
         def __init__(self, *args, **kwargs):
             super(SqlServerQuery, self).__init__(*args, **kwargs)
-            self._using_row_number = False
 
             # If we are an insert query, wrap "as_sql"
             if self.__class__.__name__ == "InsertQuery":
@@ -49,6 +48,7 @@ def query_class(QueryClass, Database):
             return row
             
         def as_sql(self, with_limits=True, with_col_aliases=False):
+            self._using_row_number = False
             # Get out of the way if we're not a select query
             # or there's no limiting involved.
             check_limits = with_limits and (self.low_mark > 0 or self.high_mark is not None)
