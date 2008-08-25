@@ -1,21 +1,13 @@
-"""
-Custom Query classes for MS SQL Serever.
-Derivatives of: django.db.models.sql.query.Query
-"""
+"""Custom Query classes for MS SQL Serever."""
 import re
 
-# Gets the /base class/ for all Django queryies.
-# This custom class derives from: django.db.models.sql.query.Query
-# which is passed in as "QueryClass".
-# Django's subquery times (InsertQuery, DeleteQuery, etc.) will then inherit
-# from this custom class.
+# query_class returns the base class to use for Django queries.
+# The custom 'SqlServerQuery' class derives from django.db.models.sql.query.Query
+# which is passed in as "QueryClass" by Django itself.
 #
-# This means that we can override the basic "Query" behavior, but not
-# derived behavior, unless we do more work.
-#
-# The goal here is to be able to override some "InsertQuery" behavior,
-# so we check the most-derived type name and replace a method if it is
-# "InsertQuery".
+# SqlServerQuery overrides:
+# ...insert queries to add "SET IDENTITY_INSERT" if needed.
+# ...select queries to emulate LIMIT/OFFSET for sliced queries.
 
 _re_order_limit_offset = re.compile(
     r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
@@ -27,10 +19,7 @@ def _remove_order_limit_offset(sql):
     return _re_order_limit_offset.sub('',sql)
 
 def query_class(QueryClass, Database):
-    """
-    Return a custom django.db.models.sql.query.Query subclass appropriate 
-    for SQL Server.
-    """
+    """Return a custom Query subclass for SQL Server."""
     class SqlServerQuery(QueryClass):
         def __init__(self, *args, **kwargs):
             super(SqlServerQuery, self).__init__(*args, **kwargs)
@@ -57,19 +46,18 @@ def query_class(QueryClass, Database):
 
             raw_sql, fields = super(SqlServerQuery, self).as_sql(False, with_col_aliases)
             
-            # Check for high mark only, replace with "TOP"
+            # Check for high mark only and replace with "TOP"
             if self.high_mark and not self.low_mark:
-                sql_parts = raw_sql.split(None, 1)
-                raw_sql = (' TOP %s ' % self.high_mark).join(sql_parts)
-                return raw_sql, fields
+                sql = re.sub(r'(?i)^SELECT', 'SELECT TOP %s' % self.high_mark, raw_sql, 1)
+                return sql, fields
                 
             # Else we have limits; rewrite the query using ROW_NUMBER()
             self._using_row_number = True
 
-            order, limit, offset = _get_order_limit_offset(raw_sql)
+            order, limit_ignore, offset_ignore = _get_order_limit_offset(raw_sql)
             
             # Lop off ORDER... and the initial "SELECT"
-            sql = _remove_order_limit_offset(raw_sql).split(None, 1)[1]
+            inner_select = _remove_order_limit_offset(raw_sql).split(None, 1)[1]
 
             # Using ROW_NUMBER requires an ordering
             if order is None:
@@ -81,14 +69,15 @@ def query_class(QueryClass, Database):
             if self.high_mark:
                 where += " and my_row_number < %s" % (self.high_mark)
 
-            sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as my_row_number, %s) as QQQ where %s" % (order, sql, where)
+            sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as my_row_number, %s) as QQQ where %s"\
+                 % (order, inner_select, where)
             
             return sql, fields
 
         def _insert_as_sql(self, *args, **kwargs):
             meta = self.get_meta()
             quoted_table = self.connection.ops.quote_name(meta.db_table)
-            
+
             sql, params = self._parent_as_sql(*args,**kwargs)
             
             if (meta.pk.attname in self.columns) and (meta.pk.__class__.__name__ == "AutoField"):
