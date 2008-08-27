@@ -1,4 +1,4 @@
-"""Custom Query classes for MS SQL Serever."""
+"""Custom Query class for MS SQL Serever."""
 import re
 
 # query_class returns the base class to use for Django queries.
@@ -38,9 +38,9 @@ def query_class(QueryClass, Database):
             
         def as_sql(self, with_limits=True, with_col_aliases=False):
             self._using_row_number = False
-            # Get out of the way if we're not a select query
-            # or there's no limiting involved.
-            check_limits = with_limits and (self.low_mark > 0 or self.high_mark is not None)
+            
+            # Get out of the way if we're not a select query or there's no limiting involved.
+            check_limits = with_limits and (self.low_mark or self.high_mark is not None)
             if self.__class__.__name__ != 'SqlServerQuery' or not check_limits:
                 return super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
 
@@ -65,22 +65,21 @@ def query_class(QueryClass, Database):
                 qn = self.connection.ops.quote_name
                 order = '%s.%s ASC' % (qn(meta.db_table), qn(meta.pk.attname))
                 
-            where = "%s <= my_row_number" % (self.low_mark)
+            where = "%s <= _row_num" % (self.low_mark)
             if self.high_mark:
-                where += " and my_row_number < %s" % (self.high_mark)
+                where += " and _row_num < %s" % (self.high_mark)
 
-            sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as my_row_number, %s) as QQQ where %s"\
+            sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as _row_num, %s) as QQQ where %s"\
                  % (order, inner_select, where)
             
             return sql, fields
 
         def _insert_as_sql(self, *args, **kwargs):
-            meta = self.get_meta()
-            quoted_table = self.connection.ops.quote_name(meta.db_table)
-
             sql, params = self._parent_as_sql(*args,**kwargs)
+            meta = self.get_meta()
             
             if (meta.pk.attname in self.columns) and (meta.pk.__class__.__name__ == "AutoField"):
+                quoted_table = self.connection.ops.quote_name(meta.db_table)
                 sql = "SET IDENTITY_INSERT %s ON;%s;SET IDENTITY_INSERT %s OFF" %\
                     (quoted_table, sql, quoted_table)
 
