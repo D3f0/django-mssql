@@ -324,7 +324,7 @@ class DatabaseAPI20Test(unittest.TestCase):
         finally:
             con.close()
 
-    lower_func = 'lower'
+    lower_func = 'to_lower'
     def test_callproc(self):
         con = self._connect()
         try:

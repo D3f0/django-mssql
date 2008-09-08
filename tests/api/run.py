@@ -22,9 +22,15 @@ class test_dbapi(dbapi20.DatabaseAPI20Test):
         cur = None
         try:
             cur = con.cursor()
-            sql_make_proc = """
-"""
-            cur.execute(sql_make_proc)
+            cur.execute("""IF OBJECT_ID(N'[dbo].[to_lower]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[to_lower]""")
+            cur.execute("""
+CREATE PROCEDURE to_lower
+    @input nvarchar(max)
+AS
+BEGIN
+    select LOWER(@input)
+END
+""")
         finally:
             try:
                 if cur is not None:
@@ -39,6 +45,9 @@ class test_dbapi(dbapi20.DatabaseAPI20Test):
     # Don't need setoutputsize tests.
     def test_setoutputsize(self): 
         pass
+        
+    def test_nextset(self):
+        print "Multiple recordset test skipped."
    
 suite = unittest.makeSuite(test_dbapi, 'test')
 testRunner = unittest.TextTestRunner(verbosity=9)
