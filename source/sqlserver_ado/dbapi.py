@@ -323,20 +323,29 @@ class Cursor(object):
         eh(self.connection, self, errorclass, errorvalue)
 
     def callproc(self, procname, parameters=None):
-        """Call a stored database procedure with the given name."""
+        """Call a stored database procedure with the given name.
+        
+        Call a stored database procedure with the given name. The
+        sequence of parameters must contain one entry for each
+        argument that the procedure expects. The result of the
+        call is returned as modified copy of the input
+        sequence. Input parameters are left untouched, output and
+        input/output parameters replaced with possibly new values.
+        
+        The procedure may also provide a result set as
+        output. This must then be made available through the
+        standard .fetch*() methods.
+        """
         self.messages = []
         return self._executeHelper(procname, True, parameters)
 
-    def _returnADOCommandParameters(self, cmd):
-        values = list()
+    def _set_return_value(self, cmd):
+        self.returnValue = None
         for p in cmd.Parameters:
-            python_obj = _convert_to_python(p.Value, p.Type)
             if p.Direction == adParamReturnValue:
                 self.returnValue = python_obj
-            else:
-                values.append(python_obj)
 
-        return values
+        return self.returnValue
 
     def _description_from_recordset(self, recordset):
     	# Abort if closed or no recordset.
@@ -418,7 +427,7 @@ class Cursor(object):
             self._description_from_recordset(recordset[0])
     
             if isStoredProcedureCall and parameters != None:
-                return self._returnADOCommandParameters(self.cmd)
+                return self._set_return_value(self.cmd)
 
         except:
             import traceback
@@ -434,7 +443,10 @@ class Cursor(object):
             return
 
     def execute(self, operation, parameters=None):
-        "Prepare and execute a database operation (query or command)."
+        """Prepare and execute a database operation (query or command).
+        
+        Return values are not defined.
+        """
         self.messages = []
         self._executeHelper(operation, False, parameters)
 

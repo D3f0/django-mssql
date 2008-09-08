@@ -16,26 +16,59 @@ class test_dbapi(dbapi20.DatabaseAPI20Test):
     driver = dbapi
     connect_args = [ make_connection_string() ]
     
-    def setUp(self):
-        # This should create the "lower" sproc.
+    def _try_run(self, *args):
         con = self._connect()
         cur = None
         try:
             cur = con.cursor()
-            cur.execute("""IF OBJECT_ID(N'[dbo].[to_lower]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[to_lower]""")
-            cur.execute("""
+            for arg in args:
+                cur.execute(arg)
+        finally:
+            try:
+                if cur is not None:
+                    cur.close()
+            except: pass
+            con.close()
+        
+    
+    # This should create the "lower" sproc.
+    def _callproc_setup(self):
+        self._try_run(
+            """IF OBJECT_ID(N'[dbo].[to_lower]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[to_lower]""",
+            """
 CREATE PROCEDURE to_lower
     @input nvarchar(max)
 AS
 BEGIN
     select LOWER(@input)
 END
-""")
+""",
+            )
+    
+    # This should create a sproc with a return value.
+    def _retval_setup(self):
+        self._try_run(
+            """IF OBJECT_ID(N'[dbo].[add_one]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[add_one]""",
+            """
+CREATE PROCEDURE add_one
+    @input int
+AS
+BEGIN
+    return @input+1
+END
+""",
+            )
+
+    def test_retval(self):
+        self._retval_setup()
+        con = self._connect()
+        try:
+            cur = con.cursor()
+            if hasattr(cur,'callproc'):
+                cur.callproc('add_one',(1,))
+                r = cur.returnValue
+                self.assertEqual(r, 2, 'retval produced invalid reults: %s' % (r,))
         finally:
-            try:
-                if cur is not None:
-                    cur.close()
-            except: pass
             con.close()
     
     # Don't need exceptions mirrored on connections.
