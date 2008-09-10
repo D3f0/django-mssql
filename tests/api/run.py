@@ -66,12 +66,37 @@ END
         con = self._connect()
         try:
             cur = con.cursor()
-            if hasattr(cur,'callproc'):
-                values = cur.callproc('add_one',(1,))
-                print values
-                self.assertEqual(values[0], 2, 'retval produced invalid reults: %s' % (values[0],))
+            values = cur.callproc('add_one',(1,))
+            print values
+            self.assertEqual(values[0], 2, 'retval produced invalid reults: %s' % (values[0],))
         finally:
             con.close()
+
+
+    # This should create a sproc with an output parameter.
+    def _outparam_setup(self, cur):
+        self._try_run2(cur,
+            """IF OBJECT_ID(N'[dbo].[add_one_out]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[add_one_out]""",
+            """
+CREATE PROCEDURE add_one_out (@input int, @output int OUTPUT)
+AS
+BEGIN
+    SET @output = @input+1
+END
+""",
+            )
+
+    def test_outparam(self):
+        con = self._connect()
+        try:
+            cur = con.cursor()
+            self._outparam_setup(cur)
+            values = cur.callproc('add_one_out',(1,None))
+            self.assertEqual(len(values), 2, 'expected 2 parameters')
+            self.assertEqual(values[0], 1, 'input parameter should be unchanged')
+            self.assertEqual(values[1], 2, 'output parameter should get new values')
+        finally:
+            con.close()            
     
     # Don't need exceptions mirrored on connections.
     def test_ExceptionsAsConnectionAttributes(self): 
@@ -95,9 +120,6 @@ end
             )
 
     def help_nextset_tearDown(self,cur):
-#        self._try_run2(cur,
-#            """IF OBJECT_ID(N'[dbo].[more_than_one]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[more_than_one]""",
-#            )
         pass
    
 suite = unittest.makeSuite(test_dbapi, 'test')

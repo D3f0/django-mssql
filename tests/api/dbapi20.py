@@ -324,22 +324,19 @@ class DatabaseAPI20Test(unittest.TestCase):
     def _callproc_setup(self):
         pass
 
-    lower_func = 'to_lower'
     def test_callproc(self):
         con = self._connect()
         try:
             cur = con.cursor()
-            if self.lower_func and hasattr(cur,'callproc'):
-                cur.callproc(self.lower_func,('FOO',))
-                r = cur.fetchall()
-                print "callproc: ", r
-                self.assertEqual(len(r),1,'callproc produced no result set')
-                self.assertEqual(len(r[0]),1,
-                    'callproc produced invalid result set'
-                    )
-                self.assertEqual(r[0][0],'foo',
-                    'callproc produced invalid results'
-                    )
+            # Execute and get new parameters
+            values = cur.callproc('to_lower', ('FOO',))
+            self.assertEqual(len(values),1, 'callproc didnt return the input values')
+            self.assertEqual(values[0],'FOO', 'input-only values shouldnt change')
+            
+            r = cur.fetchall()
+            self.assertEqual(len(r),1,'callproc produced no result set')
+            self.assertEqual(len(r[0]),1, 'callproc produced invalid result set')
+            self.assertEqual(r[0][0],'foo', 'callproc produced invalid results')
         finally:
             con.close()
 

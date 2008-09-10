@@ -353,24 +353,24 @@ class Cursor(object):
         standard .fetch*() methods.
         """
         self.cmd = None
-        
         self.messages = []
+
         self._new_command(True, procname)
-        
+        # OUTPUT parameters are inspected as INOUT
         self._executeHelper(procname, True, parameters)
 
-        values = self._get_return_values()
-        return values
-
-
-    def _get_return_values(self):
-        return_values = list()
+        newvalues = list()
+        return_value = None
 
         for p in self.cmd.Parameters:
+            py = p.Value # Need to translate this to Python
             if p.Direction == adParamReturnValue:
-                return_values = 123
-                
-        return return_values
+                return_value = py
+            else:
+                newvalues.append(py)
+
+        return newvalues
+
 
     def _description_from_recordset(self, recordset):
     	# Abort if closed or no recordset.
