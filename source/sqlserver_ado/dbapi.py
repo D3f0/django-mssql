@@ -366,7 +366,7 @@ class Cursor(object):
             self.rs.Close()
             self.rs = None
 
-    def _new_command(self):
+    def _new_command(self, command_type=adCmdText):
         self.cmd = None
         self.messages = []
 
@@ -378,6 +378,7 @@ class Cursor(object):
             self.cmd = win32com.client.Dispatch("ADODB.Command")
             self.cmd.ActiveConnection = self.connection.adoConn
             self.cmd.CommandTimeout = self.connection.adoConn.CommandTimeout
+            self.cmd.CommandType = command_type
         except:
             self._raiseCursorError(DatabaseError, None)
 
@@ -409,32 +410,22 @@ class Cursor(object):
         Extension: A "return_value" property may be set on the
         cursor if the sproc defines an integer return value.
         """
-        self._new_command()
-        self.cmd.CommandType = adCmdStoredProc
+        self._new_command(adCmdStoredProc)
         self.cmd.CommandText = procname
         self.cmd.Parameters.Refresh()
         
-        # Output parameters are inspected as InputOutput
-        i = 0 # index into passed parameters
-        for p in self.cmd.Parameters:
-            if p.Direction == adParamReturnValue: 
-                continue
-
+        # Return value is 0th ADO parameter. Skip it.
+        for i, p in enumerate(tuple(self.cmd.Parameters)[1:]):
             _configure_parameter(p, parameters[i])
-            i = i + 1
         
         self._execute_command()
 
-        newvalues = list()
-        for p in self.cmd.Parameters:
-            py = _convert_to_python(p.Value, p.Type)
-            
-            if p.Direction == adParamReturnValue:
-                self.return_value = py
-            else:
-                newvalues.append(py)
+        p = self.cmd.Parameters(0)
+        self.return_value = _convert_to_python(p.Value, p.Type)
+        
+        return [_convert_to_python(p.Value, p.Type)
+            for p in tuple(self.cmd.Parameters)[1:] ]
 
-        return newvalues
 
     def execute(self, operation, parameters=None):
         """Prepare and execute a database operation (query or command).
@@ -468,7 +459,6 @@ class Cursor(object):
         if parameter_replacements:
             operation = operation % tuple(parameter_replacements)
 
-        self.cmd.CommandType = adCmdText
         self.cmd.CommandText = operation
         self._execute_command()
 
