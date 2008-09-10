@@ -38,6 +38,7 @@ except ImportError:
 
 import win32com.client
 
+# AdamV todo - sort out decimal/currency/numeric support in SQL Server
 # The next two code lines request Decimal python types for
 # ADO currency values. This does not affect SQL decimal/numeric
 # types, which come back as strings.
@@ -45,11 +46,10 @@ import pythoncom
 pythoncom.__future_currency__ = True
 
 from ado_consts import *
-from util import MultiMap
 
-apilevel = '2.0' # String constant stating the supported DB API level.
+# DB API default values
+apilevel = '2.0'
 
-# Level of thread safety this interface supports:
 # 1: Threads may share the module, but not connections.
 threadsafety = 1
 
@@ -57,12 +57,12 @@ threadsafety = 1
 # expects '%s' parameters. This wrapper takes care of the conversion.
 paramstyle = 'format'
 
-#  Set defaultIsolationLevel on module level before creating the connection.
-#   It may be one of "adXact..." consts.
+# Set defaultIsolationLevel on module level before creating the connection.
+# It may be one of "adXact..." consts.
 defaultIsolationLevel = adXactReadCommitted
 
-#  Set defaultCursorLocation on module level before creating the connection.
-#   It may be one of the "adUse..." consts.
+# Set defaultCursorLocation on module level before creating the connection.
+# It may be one of the "adUse..." consts.
 defaultCursorLocation = adUseServer
 
 # Used for COM to Python date conversions.
