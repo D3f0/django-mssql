@@ -1,8 +1,9 @@
-"""adodbapi v2.1D -  A (mostly) Python DB API 2.0 interface to Microsoft ADO
+"""A DB API 2.0 interface to SQL Server for Django
 
-Python's DB-API 2.0: http://www.python.org/dev/peps/pep-0249/
-
-Copyright (C) 2002  Henrik Ekelund
+Forked from: adodbapi v2.1
+Copyright (C) 2002 Henrik Ekelund, version 2.1 by Vernon Cole
+* http://adodbapi.sourceforge.net/
+* http://sourceforge.net/projects/pywin32/
 
 This library is free software; you can redistribute it and/or
 modify it under the terms of the GNU Lesser General Public
@@ -16,13 +17,13 @@ Lesser General Public License for more details.
 
 You should have received a copy of the GNU Lesser General Public
 License along with this library; if not, write to the Free Software
-Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA
+Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
-* Version 2.1 by Vernon Cole
-* Version 2.1D by Adam Vandenberg (forked for internal Django backend use)
-  Note that this file acts as a db-api 2 interface for ADO, but is rather 
-  SQL Server and Django specific now, and probaby won't work against other 
-  ADO backends anymore.
+* Version 2.1D by Adam Vandenberg, forked for Django backend use.
+  This module is a db-api 2 interface for ADO, but is Django & SQL Server. 
+  It won't work against other ADO sources (like Access.)
+
+DB-API 2.0 specification: http://www.python.org/dev/peps/pep-0249/
 """
 
 import sys
@@ -55,9 +56,6 @@ threadsafety = 1
 # The underlying ADO library expects parameters as '?', but this wrapper 
 # expects '%s' parameters. This wrapper takes care of the conversion.
 paramstyle = 'format'
-
-version = __doc__.split('-',2)[0]
-
 
 #  Set defaultIsolationLevel on module level before creating the connection.
 #   It may be one of "adXact..." consts.
@@ -420,8 +418,8 @@ class Cursor(object):
         
         self._execute_command()
 
-        p = self.cmd.Parameters(0)
-        self.return_value = _convert_to_python(p.Value, p.Type)
+        p_return_value = self.cmd.Parameters(0)
+        self.return_value = _convert_to_python(p_return_value.Value, p_return_value.Type)
         
         return [_convert_to_python(p.Value, p.Type)
             for p in tuple(self.cmd.Parameters)[1:] ]
@@ -487,7 +485,7 @@ class Cursor(object):
             return
             
         if self.rs.State == adStateClosed or self.rs.BOF or self.rs.EOF:
-            if rows == 1: # fetchone can return None
+            if rows == 1: # fetchone returns None
                 return None
             else: # fetchall and fetchmany return empty lists
                 return list()
