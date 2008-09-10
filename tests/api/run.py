@@ -49,8 +49,8 @@ END
             )
     
     # This should create a sproc with a return value.
-    def _retval_setup(self):
-        self._try_run(
+    def _retval_setup(self, cur):
+        self._try_run2(cur,
             """IF OBJECT_ID(N'[dbo].[add_one]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[add_one]""",
             """
 CREATE PROCEDURE add_one (@input int)
@@ -62,16 +62,18 @@ END
             )
 
     def test_retval(self):
-        self._retval_setup()
         con = self._connect()
         try:
             cur = con.cursor()
+            self._retval_setup(cur)
             values = cur.callproc('add_one',(1,))
-            print values
-            self.assertEqual(values[0], 2, 'retval produced invalid reults: %s' % (values[0],))
+            self.assertEqual(values[0], 1, 'input parameter should be left unchanged: %s' % (values[0],))
+            
+            self.assertEqual(cur.description, None,"No resultset was expected.")
+            self.assertEqual(cur.return_value, 2, "Invalid return value: %s" % (cur.return_value,))
+
         finally:
             con.close()
-
 
     # This should create a sproc with an output parameter.
     def _outparam_setup(self, cur):

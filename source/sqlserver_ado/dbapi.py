@@ -157,7 +157,7 @@ def _use_transactions(c):
 def format_parameters(parameters, show_value=False):
     """Format a collection of ADO Command Parameters.
     
-    Used by error reporting in _executeHelper.
+    Used by error reporting in _run_command.
     """
     directions = {
         0: 'Unknown',
@@ -354,18 +354,23 @@ class Cursor(object):
         """
         self.cmd = None
         self.messages = []
+        self.return_value = None
 
         self._new_command(True, procname)
         # OUTPUT parameters are inspected as INOUT
-        self._executeHelper(procname, True, parameters)
+        self._run_command(procname, True, parameters)
 
         newvalues = list()
         return_value = None
 
         for p in self.cmd.Parameters:
-            py = p.Value # Need to translate this to Python
+            #py = p.Value # Need to translate this to Python
+            
+            # _convert_to_python(cell, ado_type)
+            py = _convert_to_python(p.Value, p.Type)
+            
             if p.Direction == adParamReturnValue:
-                return_value = py
+                self.return_value = py
             else:
                 newvalues.append(py)
 
@@ -414,7 +419,7 @@ class Cursor(object):
         else:
             self.cmd.CommandType = adCmdText
 
-    def _executeHelper(self, operation, isStoredProcedureCall, parameters=None):
+    def _run_command(self, operation, isStoredProcedureCall, parameters=None):
         if self.connection is None:
             self._raiseCursorError(Error, None)
             return
@@ -482,7 +487,7 @@ class Cursor(object):
         self.cmd = None
         
         self.messages = []
-        self._executeHelper(operation, False, parameters)
+        self._run_command(operation, False, parameters)
 
     def executemany(self, operation, seq_of_parameters):
         """Execute the given command against all parameter sequences or mappings given in seq_of_parameters."""
