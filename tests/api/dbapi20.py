@@ -132,9 +132,7 @@ class DatabaseAPI20Test(unittest.TestCase):
 
     def _connect(self):
         try:
-            return self.driver.connect(
-                *self.connect_args,**self.connect_kw_args
-                )
+            return self.driver.connect(*self.connect_args,**self.connect_kw_args)
         except AttributeError:
             self.fail("No connect method found in self.driver module")
 
@@ -144,9 +142,8 @@ class DatabaseAPI20Test(unittest.TestCase):
 
     def test_apilevel(self):
         try:
-            # Must exist
+            # Must exist and equal 2.0
             apilevel = self.driver.apilevel
-            # Must equal 2.0
             self.assertEqual(apilevel,'2.0')
         except AttributeError:
             self.fail("Driver doesn't define apilevel")
@@ -333,10 +330,9 @@ class DatabaseAPI20Test(unittest.TestCase):
         try:
             cur = con.cursor()
             if self.lower_func and hasattr(cur,'callproc'):
-                r = cur.callproc(self.lower_func,('FOO',))
-                self.assertEqual(len(r),1)
-                self.assertEqual(r[0],'FOO')
+                cur.callproc(self.lower_func,('FOO',))
                 r = cur.fetchall()
+                print "callproc: ", r
                 self.assertEqual(len(r),1,'callproc produced no result set')
                 self.assertEqual(len(r[0]),1,
                     'callproc produced invalid result set'
@@ -736,22 +732,19 @@ class DatabaseAPI20Test(unittest.TestCase):
 
                 self.help_nextset_setUp(cur)
 
-                cur.callproc('deleteme')
-                numberofrows=cur.fetchone()
-                assert numberofrows[0]== len(self.samples)
+                cur.callproc('more_than_one')
+                values = cur.fetchone()
+
                 assert cur.nextset()
-                names=cur.fetchall()
-                assert len(names) == len(self.samples)
-                s=cur.nextset()
+                values = cur.fetchall()
+
+                s = cur.nextset()
                 assert s == None,'No more return sets, should return None'
             finally:
                 self.help_nextset_tearDown(cur)
 
         finally:
             con.close()
-
-    def test_nextset(self):
-        raise NotImplementedError,'Drivers need to override this test'
 
     def test_arraysize(self):
         # Not much here - rest of the tests for this are in test_fetchmany

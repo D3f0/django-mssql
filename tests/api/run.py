@@ -29,7 +29,10 @@ class test_dbapi(dbapi20.DatabaseAPI20Test):
                     cur.close()
             except: pass
             con.close()
-        
+
+    def _try_run2(self, cur, *args):
+        for arg in args:
+            cur.execute(arg)
     
     # This should create the "lower" sproc.
     def _callproc_setup(self):
@@ -50,8 +53,7 @@ END
         self._try_run(
             """IF OBJECT_ID(N'[dbo].[add_one]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[add_one]""",
             """
-CREATE PROCEDURE add_one
-    @input int
+CREATE PROCEDURE add_one (@input int)
 AS
 BEGIN
     return @input+1
@@ -65,9 +67,9 @@ END
         try:
             cur = con.cursor()
             if hasattr(cur,'callproc'):
-                cur.callproc('add_one',(1,))
-                r = cur.returnValue
-                self.assertEqual(r, 2, 'retval produced invalid reults: %s' % (r,))
+                values = cur.callproc('add_one',(1,))
+                print values
+                self.assertEqual(values[0], 2, 'retval produced invalid reults: %s' % (values[0],))
         finally:
             con.close()
     
@@ -79,8 +81,24 @@ END
     def test_setoutputsize(self): 
         pass
         
-    def test_nextset(self):
-        print "Multiple recordset test skipped."
+    def help_nextset_setUp(self,cur):
+        self._try_run2(cur,
+            """IF OBJECT_ID(N'[dbo].[more_than_one]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[more_than_one]""",
+            """
+create procedure more_than_one
+as
+begin
+    select 1,2,3
+    select 4,5,6
+end
+""",
+            )
+
+    def help_nextset_tearDown(self,cur):
+#        self._try_run2(cur,
+#            """IF OBJECT_ID(N'[dbo].[more_than_one]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[more_than_one]""",
+#            )
+        pass
    
 suite = unittest.makeSuite(test_dbapi, 'test')
 testRunner = unittest.TextTestRunner(verbosity=9)

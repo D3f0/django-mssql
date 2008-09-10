@@ -154,14 +154,31 @@ def _use_transactions(c):
             return prop.Value > 0
     return False
 
-def format_parameters(parameters):
+def format_parameters(parameters, show_value=False):
     """Format a collection of ADO Command Parameters.
     
     Used by error reporting in _executeHelper.
     """
-    desc = ["Name: %s, Type: %s, Size: %s" %\
-        (p.Name, adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size)
-        for p in parameters]
+    directions = {
+        0: 'Unknown',
+        1: 'Input',
+        2: 'Output',
+        3: 'In/Out',
+        4: 'Return',
+    }
+    
+    if show_value:
+        desc = [
+            "Name: %s, Dir.: %s, Type: %s, Size: %s, Value: \"%s\"" %\
+            (p.Name, directions[p.Direction], adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size, p.Value)
+            for p in parameters
+        ]
+    else:
+        desc = [
+            "Name: %s, Dir.: %s, Type: %s, Size: %s" %\
+            (p.Name, directions[p.Direction], adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size)
+            for p in parameters
+        ]
     
     return '[' + ', '.join(desc) + ']'
 
@@ -216,7 +233,7 @@ class Connection(object):
             eh = standardErrorHandler
         eh(self, None, errorclass, errorvalue)
 
-    def _closeAdoConnection(self):
+    def _close_connection(self):
         """Close the underlying ADO Connection object, rolling back an active transation if supported."""
         if self.supportsTransactions:
             self.adoConn.RollbackTrans()
@@ -226,7 +243,7 @@ class Connection(object):
         """Close the database connection."""
         self.messages = []
         try:
-            self._closeAdoConnection()
+            self._close_connection()
         except Exception, e:
             self._raiseConnectionError(InternalError, e)
         pythoncom.CoUninitialize()
@@ -282,7 +299,7 @@ class Connection(object):
 
     def __del__(self):
         try:
-            self._closeAdoConnection()
+            self._close_connection()
         except: pass
         self.adoConn = None
 
@@ -325,8 +342,7 @@ class Cursor(object):
     def callproc(self, procname, parameters=None):
         """Call a stored database procedure with the given name.
         
-        Call a stored database procedure with the given name. The
-        sequence of parameters must contain one entry for each
+        The sequence of parameters must contain one entry for each
         argument that the procedure expects. The result of the
         call is returned as modified copy of the input
         sequence. Input parameters are left untouched, output and
@@ -336,16 +352,25 @@ class Cursor(object):
         output. This must then be made available through the
         standard .fetch*() methods.
         """
+        self.cmd = None
+        
         self.messages = []
-        return self._executeHelper(procname, True, parameters)
+        self._new_command(True, procname)
+        
+        self._executeHelper(procname, True, parameters)
 
-    def _set_return_value(self, cmd):
-        self.returnValue = None
-        for p in cmd.Parameters:
+        values = self._get_return_values()
+        return values
+
+
+    def _get_return_values(self):
+        return_values = list()
+
+        for p in self.cmd.Parameters:
             if p.Direction == adParamReturnValue:
-                self.returnValue = python_obj
-
-        return self.returnValue
+                return_values = 123
+                
+        return return_values
 
     def _description_from_recordset(self, recordset):
     	# Abort if closed or no recordset.
@@ -377,13 +402,15 @@ class Cursor(object):
             self.rs.Close()
             self.rs = None
 
-    def _new_command(self, sproc_call):
+    def _new_command(self, sproc_call, sproc_name=None):
         self.cmd = win32com.client.Dispatch("ADODB.Command")
         self.cmd.ActiveConnection = self.connection.adoConn
         self.cmd.CommandTimeout = self.connection.adoConn.CommandTimeout
 
         if sproc_call:
             self.cmd.CommandType = adCmdStoredProc
+            self.cmd.CommandText = sproc_name
+            self.cmd.Parameters.Refresh()
         else:
             self.cmd.CommandType = adCmdText
 
@@ -398,36 +425,41 @@ class Cursor(object):
             parameters = list()
 
         try:
-            self._new_command(isStoredProcedureCall)
-            for i, value in enumerate(parameters):
-                if value is None:
-                    parameter_replacements.append('NULL')
-                    continue
+            if self.cmd is None:
+                self._new_command(isStoredProcedureCall)
+                for i, value in enumerate(parameters):
+                    if value is None:
+                        parameter_replacements.append('NULL')
+                        continue
+    
+                    # Otherwise, process the non-NULL parameter.
+                    parameter_replacements.append('?')
+                    p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
+                    try:
+                        _configure_parameter(p, value)
+                    except:
+                        _parameter_error_message = u'Converting Parameter %s: %s, %s\n' %\
+                            (p.Name, ado_type_name(p.Type), repr(value))
+                        raise
+    
+                    self.cmd.Parameters.Append(p)
+    
+                # Use literal NULLs in raw queries, but not sproc calls.                            
+                if not isStoredProcedureCall and parameter_replacements:
+                    operation = operation % tuple(parameter_replacements)
 
-                # Otherwise, process the non-NULL parameter.
-                parameter_replacements.append('?')
-                p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
-                try:
-                    _configure_parameter(p, value)
-                except:
-                    _parameter_error_message = u'Converting Parameter %s: %s, %s\n' %\
-                        (p.Name, ado_type_name(p.Type), repr(value))
-                    raise
-
-                self.cmd.Parameters.Append(p)
-
-            # Use literal NULLs in raw queries, but not sproc calls.                            
-            if not isStoredProcedureCall and parameter_replacements:
-                operation = operation % tuple(parameter_replacements)
-
-            self.cmd.CommandText = operation
+                self.cmd.CommandText = operation
+            else:
+                i = 0 # index into (python value) passed parameters
+                for p in self.cmd.Parameters:
+                    if p.Direction in [adParamInput, adParamInputOutput]:
+                        _configure_parameter(p, parameters[i])
+                        i = i + 1
+                
             recordset = self.cmd.Execute()
 
-            self.rowcount=recordset[1]  # May be -1 if NOCOUNT is set.
+            self.rowcount=recordset[1]  # -1 if NOCOUNT is set.
             self._description_from_recordset(recordset[0])
-    
-            if isStoredProcedureCall and parameters != None:
-                return self._set_return_value(self.cmd)
 
         except:
             import traceback
@@ -440,13 +472,15 @@ class Cursor(object):
             new_error_message = u'%s\n%s\nCommand: "%s"\nParameters: %s \nValues: %s' %\
             	(stack_trace, _parameter_error_message, operation, ado_params, parameters)
             self._raiseCursorError(DatabaseError, new_error_message)
-            return
+
 
     def execute(self, operation, parameters=None):
         """Prepare and execute a database operation (query or command).
         
         Return values are not defined.
         """
+        self.cmd = None
+        
         self.messages = []
         self._executeHelper(operation, False, parameters)
 
