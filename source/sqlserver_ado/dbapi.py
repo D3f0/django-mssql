@@ -20,7 +20,7 @@ License along with this library; if not, write to the Free Software
 Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA 02111-1307 USA
 
 * Version 2.1D by Adam Vandenberg, forked for Django backend use.
-  This module is a db-api 2 interface for ADO, but is Django & SQL Server. 
+  This module is a db-api 2 interface for ADO, but is Django & SQL Server.
   It won't work against other ADO sources (like Access.)
 
 DB-API 2.0 specification: http://www.python.org/dev/peps/pep-0249/
@@ -45,6 +45,8 @@ import win32com.client
 import pythoncom
 pythoncom.__future_currency__ = True
 
+import pywintypes
+
 from ado_consts import *
 
 # DB API default values
@@ -53,7 +55,7 @@ apilevel = '2.0'
 # 1: Threads may share the module, but not connections.
 threadsafety = 1
 
-# The underlying ADO library expects parameters as '?', but this wrapper 
+# The underlying ADO library expects parameters as '?', but this wrapper
 # expects '%s' parameters. This wrapper takes care of the conversion.
 paramstyle = 'format'
 
@@ -73,12 +75,12 @@ _milliseconds_per_day = 24*60*60*1000
 class MultiMap(object):
     def __init__(self, mapping, default=None):
         """Defines a mapping with multiple keys per value.
-        
+
         mapping is a dict of: tuple(key, key, key...) => value
         """
         self.storage = dict()
         self.default = default
-        
+
         for keys, value in mapping.iteritems():
             for key in keys:
                 self.storage[key] = value
@@ -126,7 +128,7 @@ class _DbType(object):
 
 def connect(connection_string, timeout=30):
     """Connect to a database.
-    
+
     connection_string -- An ADODB formatted connection string, see:
         http://www.connectionstrings.com/?carrier=sqlserver2005
     timeout -- A command timeout value, in seconds (default 30 seconds)
@@ -140,7 +142,7 @@ def connect(connection_string, timeout=30):
         c.Open()
     except Exception, e:
         raise DatabaseError(e, "Error opening connection: " + connection_string)
-        
+
     useTransactions = _use_transactions(c)
     return Connection(c, useTransactions)
 
@@ -153,7 +155,7 @@ def _use_transactions(c):
 
 def format_parameters(parameters, show_value=False):
     """Format a collection of ADO Command Parameters.
-    
+
     Used by error reporting in _execute_command.
     """
     directions = {
@@ -163,7 +165,7 @@ def format_parameters(parameters, show_value=False):
         3: 'In/Out',
         4: 'Return',
     }
-    
+
     if show_value:
         desc = [
             "Name: %s, Dir.: %s, Type: %s, Size: %s, Value: \"%s\"" %\
@@ -174,18 +176,18 @@ def format_parameters(parameters, show_value=False):
             "Name: %s, Dir.: %s, Type: %s, Size: %s" %\
             (p.Name, directions[p.Direction], adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size)
             for p in parameters ]
-    
+
     return '[' + ', '.join(desc) + ']'
 
 def _configure_parameter(p, value):
     """Configure the given ADO Parameter 'p' with the Python 'value'."""
     if p.Direction not in [adParamInput, adParamInputOutput, adParamUnknown]:
         return
-    
+
     if isinstance(value, basestring):
         p.Value = value
         p.Size = len(value)
-    
+
     elif isinstance(value, buffer):
         p.Size = len(value)
         p.AppendChunk(value)
@@ -200,13 +202,13 @@ def _configure_parameter(p, value):
             p.NumericScale = 0
         else:
             p.NumericScale = len(s)-point
-        
+
     else:
         # For any other type, set the value and let pythoncom do the right thing.
         p.Value = value
-    
+
     # Use -1 instead of 0 for empty strings and buffers
-    if p.Size == 0: 
+    if p.Size == 0:
         p.Size = -1
 
 
@@ -217,7 +219,7 @@ class Connection(object):
         self.messages = []
         self.adoConn.CursorLocation = defaultCursorLocation
         self.supportsTransactions = useTransactions
-        
+
         if self.supportsTransactions:
             self.adoConn.IsolationLevel = defaultIsolationLevel
             self.adoConn.BeginTrans() #Disables autocommit per DBPAI
@@ -246,13 +248,13 @@ class Connection(object):
     def commit(self):
         """Commit a pending transaction to the database.
 
-        Note that if the database supports an auto-commit feature, this must 
+        Note that if the database supports an auto-commit feature, this must
         be initially off.
         """
         self.messages = []
         if not self.supportsTransactions:
             return
-            
+
         try:
             self.adoConn.CommitTrans()
             if not(self.adoConn.Attributes & adXactCommitRetaining):
@@ -268,7 +270,7 @@ class Connection(object):
         self.messages = []
         if not self.supportsTransactions:
             self._raiseConnectionError(NotSupportedError, None)
-            
+
         self.adoConn.RollbackTrans()
         if not(self.adoConn.Attributes & adXactAbortRetaining):
             #If attributes has adXactAbortRetaining it performs retaining aborts that is,
@@ -345,14 +347,14 @@ class Cursor(object):
         self.rowcount = -1
         self.rs = recordset
         desc = list()
-        
-        for f in self.rs.Fields:            
-            display_size = None            
+
+        for f in self.rs.Fields:
+            display_size = None
             if not(self.rs.EOF or self.rs.BOF):
                 display_size = f.ActualSize
-                
+
             null_ok = bool(f.Attributes & adFldMayBeNull)
-            
+
             desc.append( (f.Name, f.Type, display_size, f.DefinedSize, f.Precision, f.NumericScale, null_ok) )
         self.description = desc
 
@@ -388,53 +390,54 @@ class Cursor(object):
             recordset = self.cmd.Execute()
             self.rowcount = recordset[1]
             self._description_from_recordset(recordset[0])
-
+        except pywintypes.com_error, e:
+            self._raiseCursorError(DatabaseError, e.args)
         except:
             self._raiseCursorError(DatabaseError, None)
 
 
     def callproc(self, procname, parameters=None):
         """Call a stored database procedure with the given name.
-        
+
         The sequence of parameters must contain one entry for each
         argument that the sproc expects. The result of the
         call is returned as modified copy of the input
         sequence. Input parameters are left untouched, output and
         input/output parameters replaced with possibly new values.
-        
-        The sproc may also provide a result set as output, 
+
+        The sproc may also provide a result set as output,
         which is available through the standard .fetch*() methods.
-        
+
         Extension: A "return_value" property may be set on the
         cursor if the sproc defines an integer return value.
         """
         self._new_command(adCmdStoredProc)
         self.cmd.CommandText = procname
         self.cmd.Parameters.Refresh()
-        
+
         # Return value is 0th ADO parameter. Skip it.
         for i, p in enumerate(tuple(self.cmd.Parameters)[1:]):
             _configure_parameter(p, parameters[i])
-        
+
         self._execute_command()
 
         p_return_value = self.cmd.Parameters(0)
         self.return_value = _convert_to_python(p_return_value.Value, p_return_value.Type)
-        
+
         return [_convert_to_python(p.Value, p.Type)
             for p in tuple(self.cmd.Parameters)[1:] ]
 
 
     def execute(self, operation, parameters=None):
         """Prepare and execute a database operation (query or command).
-        
+
         Return value is not defined.
         """
         self._new_command()
-        
+
         if parameters is None:
             parameters = list()
-        
+
         parameter_replacements = list()
         for i, value in enumerate(parameters):
             if value is None:
@@ -469,21 +472,21 @@ class Cursor(object):
             self.execute(operation, params)
             if self.rowcount == -1:
                 total_recordcount = -1
-                
+
             if total_recordcount != -1:
                 total_recordcount += self.rowcount
 
         self.rowcount = total_recordcount
-        
+
     def _fetch(self, rows=None):
         """Fetch rows from the current recordset.
-        
+
         rows -- Number of rows to fetch, or None (default) to fetch all rows.
         """
         if self.connection is None or self.rs is None:
             self._raiseCursorError(Error, None)
             return
-            
+
         if self.rs.State == adStateClosed or self.rs.BOF or self.rs.EOF:
             if rows == 1: # fetchone returns None
                 return None
@@ -586,7 +589,7 @@ ROWID    = _DbType(adoRowIdTypes)
 
 # Mapping ADO data types to Python objects.
 def _convert_to_python(variant, adType):
-    if variant is None: 
+    if variant is None:
         return None
     return _variantConversions[adType](variant)
 
@@ -597,9 +600,9 @@ def _cvtCurrency((hi, lo), decimal_places=2):
 
 def _cvtFloat(variant):
     return _convertNumberWithCulture(variant, float)
-        
+
 def _convertNumberWithCulture(variant, f):
-    try: 
+    try:
         return f(variant)
     except (ValueError,TypeError):
         try:
@@ -611,7 +614,7 @@ def _cvtComDate(comDate):
     date_as_float = float(comDate)
     day_count = int(date_as_float)
     fraction_of_day = abs(date_as_float - day_count)
-    
+
     return (datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31) +
         datetime.timedelta(milliseconds=fraction_of_day * _milliseconds_per_day))
 
