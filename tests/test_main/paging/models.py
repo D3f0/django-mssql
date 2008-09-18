@@ -1,6 +1,7 @@
-import unittest
 from django.db import models
 from django.core.paginator import QuerySetPaginator
+
+import unittest
 
 class FirstTable(models.Model):
     b = models.CharField(max_length=100)

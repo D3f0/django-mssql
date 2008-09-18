@@ -65,9 +65,9 @@ def query_class(QueryClass, Database):
                 qn = self.connection.ops.quote_name
                 order = '%s.%s ASC' % (qn(meta.db_table), qn(meta.pk.attname))
             
-            where_row_num = "%s < _row_num" % (self.low_mark)
+            where_row_num = "%s <= _row_num" % (self.low_mark)
             if self.high_mark:
-                where_row_num += " and _row_num <= %s" % (self.high_mark)
+                where_row_num += " and _row_num < %s" % (self.high_mark)
                 
             outer_select, inner_select = self._alias_columns(inner_select)
             
