@@ -110,7 +110,7 @@ class Bug27Table(models.Model):
 # Test slicing
 class Products(models.Model):
     """
-    >>> names=['Screws', 'Bolts', 'Nuts', 'S-Pipe', 'L-Pipe', 'Item', 'Zebra']
+    >>> names=['Screws', 'Bolts', 'Nuts', 'SPipe', 'LPipe', 'Item', 'Zebra']
     >>> for n in names: product = Products.objects.create(name=n)
     >>> p = Products.objects
     >>> len(list(p.all()))
@@ -120,15 +120,16 @@ class Products(models.Model):
     >>> len(list(p.all()[2:5]))
     3
     >>> len(list(p.all()[5:]))
-    3
-    >>> list(p.order_by('name'))
-    [Bolts, Item, L-Pipe, Nuts, Screws, S-Pipe, Zebra]
-    >>> list(p.order_by('name')[:3])
-    [Bolts, Item, L-Pipe]
-    >>> list(p.order_by('name')[2:5])
-    [Item, L-Pipe, Nuts]
-    >>> list(p.order_by('name')[5:])
-    [Screws, S-Pipe, Zebra]
+    2
+    >>> pn = p.order_by('name')
+    >>> list(pn)
+    [Bolts, Item, LPipe, Nuts, Screws, SPipe, Zebra]
+    >>> list(pn[:3])
+    [Bolts, Item, LPipe]
+    >>> list(pn[2:5])
+    [LPipe, Nuts, Screws]
+    >>> list(pn[5:])
+    [SPipe, Zebra]
     """
 
     productid = models.AutoField(primary_key=True)
