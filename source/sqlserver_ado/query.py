@@ -64,15 +64,45 @@ def query_class(QueryClass, Database):
                 meta = self.get_meta()
                 qn = self.connection.ops.quote_name
                 order = '%s.%s ASC' % (qn(meta.db_table), qn(meta.pk.attname))
-                
-            where = "%s <= _row_num" % (self.low_mark)
+            
+            where_row_num = "%s < _row_num" % (self.low_mark)
             if self.high_mark:
-                where += " and _row_num < %s" % (self.high_mark)
-
-            sql = "SELECT * FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as _row_num, %s) as QQQ where %s"\
-                 % (order, inner_select, where)
+                where_row_num += " and _row_num <= %s" % (self.high_mark)
+                
+            outer_select, inner_select = self._alias_columns(inner_select)
+            
+            sql = "SELECT _row_num, %s FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as _row_num, %s) as QQQ where %s"\
+                 % (outer_select, order, inner_select, where_row_num)
             
             return sql, fields
+
+        def _alias_columns(self, sql):
+            """Return tuple of SELECT and FROM clauses, aliasing duplicate column names."""
+            qn = self.connection.ops.quote_name
+
+            outer = list()
+            inner = list()
+            
+            names_seen = list()
+            original_names = sql[0:sql.find(' FROM [')].split(',')
+            for col in original_names:
+                # Col looks like: "[app_table].[column]"; strip out just "column"
+                col_name = col.split('].[')[1][:-1]
+                
+                # If column name was already seen, alias it.
+                if col_name in names_seen:
+                    unique_col_name = qn('%s___%s' % (col_name, names_seen.count(col_name)))
+
+                    outer.append(unique_col_name)
+                    inner.append("%s as %s" % (col, unique_col_name))
+                else:
+                    outer.append(qn(col_name))
+                    inner.append(col)
+
+                names_seen.append(col_name)
+
+            # Add FROM clause back to inner select
+            return ', '.join(outer), ', '.join(inner) + sql[sql.find(' FROM ['):]
 
         def _insert_as_sql(self, *args, **kwargs):
             sql, params = self._parent_as_sql(*args,**kwargs)

@@ -76,4 +76,5 @@ TEMPLATE_DIRS = (
 
 INSTALLED_APPS = (
 	'myapp',
+	'paging',
 )
