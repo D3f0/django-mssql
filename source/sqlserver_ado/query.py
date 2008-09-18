@@ -12,11 +12,17 @@ import re
 _re_order_limit_offset = re.compile(
     r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
 
+def _break(s, find):
+    """Break a string s into the part before the substring to find, 
+    and the part including and after the substring."""
+    i = s.find(find)
+    return s[:i], s[i:]
+
 def _get_order_limit_offset(sql):
     return _re_order_limit_offset.search(sql).groups()
     
 def _remove_order_limit_offset(sql):
-    return _re_order_limit_offset.sub('',sql)
+    return _re_order_limit_offset.sub('',sql).split(None, 1)[1]
 
 def query_class(QueryClass):
     """Return a custom Query subclass for SQL Server."""
@@ -56,9 +62,6 @@ def query_class(QueryClass):
 
             order, limit_ignore, offset_ignore = _get_order_limit_offset(raw_sql)
             
-            # Lop off ORDER... and the initial "SELECT"
-            inner_select = _remove_order_limit_offset(raw_sql).split(None, 1)[1]
-
             # Using ROW_NUMBER requires an ordering
             if order is None:
                 meta = self.get_meta()
@@ -69,10 +72,12 @@ def query_class(QueryClass):
             if self.high_mark:
                 where_row_num += " and _row_num <= %s" % (self.high_mark)
                 
-            outer_select, inner_select = self._alias_columns(inner_select)
+            # Lop off ORDER... and the initial "SELECT"
+            inner_select = _remove_order_limit_offset(raw_sql)
+            outer_fields, inner_select = self._alias_columns(inner_select)
             
             sql = "SELECT _row_num, %s FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as _row_num, %s) as QQQ where %s"\
-                 % (outer_select, order, inner_select, where_row_num)
+                 % (outer_fields, order, inner_select, where_row_num)
             
             return sql, fields
 
@@ -88,16 +93,16 @@ def query_class(QueryClass):
             inner = list()
 
             names_seen = list()
-            original_names = [x.strip() for x in sql[:sql.find(' FROM [')].split(',')]
-            for col in original_names:
+            
+            select_list, from_clause = _break(sql, ' FROM [')
+            for col in [x.strip() for x in select_list.split(',')]:
                 col_name = re.search(_pat_col, col).group(1)
                 
                 # If column name was already seen, alias it.
                 if col_name in names_seen:
-                    unique_col_name = qn('%s___%s' % (col_name, names_seen.count(col_name)))
-
-                    outer.append(unique_col_name)
-                    inner.append("%s as %s" % (col, unique_col_name))
+                    alias = qn('%s___%s' % (col_name, names_seen.count(col_name)))
+                    outer.append(alias)
+                    inner.append("%s as %s" % (col, alias))
                 else:
                     outer.append(qn(col_name))
                     inner.append(col)
@@ -105,7 +110,7 @@ def query_class(QueryClass):
                 names_seen.append(col_name)
 
             # Add FROM clause back to inner select
-            return ', '.join(outer), ', '.join(inner) + sql[sql.find(' FROM ['):]
+            return ', '.join(outer), ', '.join(inner) + from_clause
 
         def _insert_as_sql(self, *args, **kwargs):
             sql, params = self._parent_as_sql(*args,**kwargs)
