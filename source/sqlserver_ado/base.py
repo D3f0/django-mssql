@@ -1,12 +1,13 @@
 """Microsoft SQL Server database backend for Django."""
-from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseOperations, BaseDatabaseValidation, BaseDatabaseClient
+from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseValidation, BaseDatabaseClient
 
 from django.core.exceptions import ImproperlyConfigured
 
 import dbapi as Database
-import query
+
 from introspection import DatabaseIntrospection
 from creation import DatabaseCreation
+from operations import DatabaseOperations
 
 DatabaseError = Database.DatabaseError
 IntegrityError = Database.IntegrityError
@@ -14,77 +15,6 @@ IntegrityError = Database.IntegrityError
 
 class DatabaseFeatures(BaseDatabaseFeatures):
     uses_custom_query_class = True
-
-class DatabaseOperations(BaseDatabaseOperations):
-    def date_extract_sql(self, lookup_type, field_name):
-        return "DATEPART(%s, %s)" % (lookup_type, self.quote_name(field_name))
-
-    def date_trunc_sql(self, lookup_type, field_name):
-    	quoted_field_name = self.quote_name(field_name)
-
-        if lookup_type == 'year':
-            return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/01/01')" % quoted_field_name
-        if lookup_type == 'month':
-            return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/' + Convert(varchar, DATEPART(month, %s)) + '/01')" %\
-                (quoted_field_name, quoted_field_name)
-        if lookup_type == 'day':
-            return "Convert(datetime, Convert(varchar(12), %s))" % quoted_field_name
-
-    def last_insert_id(self, cursor, table_name, pk_name):
-        cursor.execute("SELECT CAST(IDENT_CURRENT(%s) as bigint)", [self.quote_name(table_name)])
-        return cursor.fetchone()[0]
-
-    def query_class(self, DefaultQueryClass):
-        return query.query_class(DefaultQueryClass, Database)
-
-    def quote_name(self, name):
-        if name.startswith('[') and name.endswith(']'):
-            return name # already quoted
-        return '[%s]' % name
-
-    def random_function_sql(self):
-        return 'RAND()'
-
-    def regex_lookup(self, lookup_type):
-		# Case sensitivity
-		match_option = {'iregex':0, 'regex':1}[lookup_type]
-		return "dbo.REGEXP_LIKE(%%s, %%s, %s)=1" % (match_option,)
-
-    def tablespace_sql(self, tablespace, inline=False):
-        return "ON %s" % self.quote_name(tablespace)
-        
-    def no_limit_value(self):
-        return None
-
-    def value_to_db_datetime(self, value):
-        # MS SQL 2005 doesn't support microseconds
-        if value is None:
-            return None
-        return value.replace(microsecond=0)
-    
-    def value_to_db_time(self, value):
-        # MS SQL 2005 doesn't support microseconds
-        #...but it also doesn't really suport bare times
-        if value is None:
-            return None
-        return value.replace(microsecond=0)
-	        
-    def value_to_db_decimal(self, value, max_digits, decimal_places):
-        if value is None or value == '':
-            return None
-        return value # Should be a decimal type (or string)
-
-    def prep_for_like_query(self, x):
-        """Prepares a value for use in a LIKE query."""
-        from django.utils.encoding import smart_unicode
-        return (
-            smart_unicode(x).\
-                replace("\\", "\\\\").\
-                replace("%", "\%").\
-                replace("_", "\_").\
-                replace("[", "\[").\
-                replace("]", "\]")
-            )
 
 # IP Address recognizer taken from:
 # http://mail.python.org/pipermail/python-list/2006-March/375505.html

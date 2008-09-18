@@ -18,7 +18,7 @@ def _get_order_limit_offset(sql):
 def _remove_order_limit_offset(sql):
     return _re_order_limit_offset.sub('',sql)
 
-def query_class(QueryClass, Database):
+def query_class(QueryClass):
     """Return a custom Query subclass for SQL Server."""
     class SqlServerQuery(QueryClass):
         def __init__(self, *args, **kwargs):
@@ -79,15 +79,18 @@ def query_class(QueryClass, Database):
         def _alias_columns(self, sql):
             """Return tuple of SELECT and FROM clauses, aliasing duplicate column names."""
             qn = self.connection.ops.quote_name
-
+            
+            # Pattern to find the quoted column name at the end of a field specification
+            _pat_col = r"\[([^[]+)\]$"  
+            #]) Funky comment to get e's syntax highlighting back on track. 
+        
             outer = list()
             inner = list()
-            
+
             names_seen = list()
-            original_names = sql[0:sql.find(' FROM [')].split(',')
+            original_names = [x.strip() for x in sql[:sql.find(' FROM [')].split(',')]
             for col in original_names:
-                # Col looks like: "[app_table].[column]"; strip out just "column"
-                col_name = col.split('].[')[1][:-1]
+                col_name = re.search(_pat_col, col).group(1)
                 
                 # If column name was already seen, alias it.
                 if col_name in names_seen:
