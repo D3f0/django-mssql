@@ -17,60 +17,22 @@ class Bug19Table(models.Model):
     ...     Bug19Table.objects.create(choice=c).save()
     >>> len(Bug19Table.objects.all())
     6    
-
     >>> len(Bug19Table.objects.filter(choice__contains="shes"))
     2
-    
     >>> len(Bug19Table.objects.filter(choice__endswith="shes"))
     1
-    
     >>> len(Bug19Table.objects.filter(choice__contains=r"der\som"))
     1
-    
     >>> len(Bug19Table.objects.filter(choice__endswith=r"der\somefile.ext"))
     1
-    
     >>> len(Bug19Table.objects.filter(choice__contains="["))
     1
-    
     """
     choice = models.TextField(max_length=200)
     
     def __unicode__(self):
         return self.choice
 
-
-class Bug23Table(models.Model):
-    """
-    Test inserting mixed NULL and non-NULL values.
-    
-    >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=1)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=1)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2="text2", myintfield=None)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=1)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=None)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=None)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=None)
-    >>> obj.save()
-    >>> objs = list(Bug23Table.objects.all())
-    >>> len(objs)
-    7
-    >>> len([obj for obj in objs if obj.mycharfield1=="text1"])
-    3
-    >>> len([obj for obj in objs if obj.mycharfield2=="text2"])
-    3
-    >>> len([obj for obj in objs if obj.myintfield==1])
-    3
-    """
-    mycharfield1 = models.CharField(max_length=100, null=True)
-    mycharfield2 = models.CharField(max_length=50, null=True)
-    myintfield = models.IntegerField(null=True)
 
 class Bug21Table(models.Model):
     """
@@ -105,6 +67,38 @@ class Bug27Table(models.Model):
     """
     
     a = models.IntegerField()
+
+class Bug23Table(models.Model):
+    """
+    Test inserting mixed NULL and non-NULL values.
+    
+    >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=1)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=1)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2="text2", myintfield=None)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=1)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=None)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=None)
+    >>> obj.save()
+    >>> obj = Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=None)
+    >>> obj.save()
+    >>> objs = list(Bug23Table.objects.all())
+    >>> len(objs)
+    7
+    >>> len([obj for obj in objs if obj.mycharfield1=="text1"])
+    3
+    >>> len([obj for obj in objs if obj.mycharfield2=="text2"])
+    3
+    >>> len([obj for obj in objs if obj.myintfield==1])
+    3
+    """
+    mycharfield1 = models.CharField(max_length=100, null=True)
+    mycharfield2 = models.CharField(max_length=50, null=True)
+    myintfield = models.IntegerField(null=True)
 
 class RelatedB(models.Model):
     a = models.CharField(max_length=50)
