@@ -22,8 +22,42 @@ class SecondTable(models.Model):
     def __repr__(self):
         return '<FirstTable %s: %s, %s>' % (self.pk, self.a_id, self.b)
 
+# Test slicing
+class Products(models.Model):
+    """
+    >>> names=['D', 'F', 'B', 'A', 'C', 'E', 'G']
+    >>> for n in names: product = Products.objects.create(name=n)
+    >>> p = Products.objects
+    >>> len(list(p.all()))
+    7
+    >>> len(list(p.all()[:3]))
+    3
+    >>> len(list(p.all()[2:5]))
+    3
+    >>> len(list(p.all()[5:]))
+    2
+    >>> pn = p.order_by('name')
+    >>> list(pn)
+    [A, B, C, D, E, F, G]
+    >>> list(pn[:3])
+    [A, B, C]
+    >>> list(pn[2:5])
+    [C, D, E]
+    >>> list(pn[5:])
+    [F, G]
+    """
 
+    productid = models.AutoField(primary_key=True)
+    name = models.CharField(max_length=50)
+        
+    def __repr__(self):
+        return self.name
+        
+    def __unicode__(self):
+        return "<Product %u: %u>" % (self.productid, self.name)
+        
 class PagingTestCase(TestCase):
+    """The Paginator uses slicing internally."""
     fixtures = ['paging.json']
     
     def get_q(self, a1_pk):

@@ -106,42 +106,6 @@ class Bug27Table(models.Model):
     
     a = models.IntegerField()
 
-
-# Test slicing
-class Products(models.Model):
-    """
-    >>> names=['Screws', 'Bolts', 'Nuts', 'SPipe', 'LPipe', 'Item', 'Zebra']
-    >>> for n in names: product = Products.objects.create(name=n)
-    >>> p = Products.objects
-    >>> len(list(p.all()))
-    7
-    >>> len(list(p.all()[:3]))
-    3
-    >>> len(list(p.all()[2:5]))
-    3
-    >>> len(list(p.all()[5:]))
-    2
-    >>> pn = p.order_by('name')
-    >>> list(pn)
-    [Bolts, Item, LPipe, Nuts, Screws, SPipe, Zebra]
-    >>> list(pn[:3])
-    [Bolts, Item, LPipe]
-    >>> list(pn[2:5])
-    [LPipe, Nuts, Screws]
-    >>> list(pn[5:])
-    [SPipe, Zebra]
-    """
-
-    productid = models.AutoField(primary_key=True)
-    name = models.CharField(max_length=50)
-        
-    def __repr__(self):
-        return self.name
-        
-    def __unicode__(self):
-        return "<Product %u: %u>" % (self.productid, self.name)
-
-
 class RelatedB(models.Model):
     a = models.CharField(max_length=50)
     b = models.CharField(max_length=50)
