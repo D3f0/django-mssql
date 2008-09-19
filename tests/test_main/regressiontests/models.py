@@ -1,8 +1,7 @@
 import datetime
 import decimal
 from django.db import models
-
-import unittest
+from django.test import TestCase
 
 class Bug19Table(models.Model):
     """ A simple model for testing string comparisons.
@@ -38,10 +37,8 @@ class Bug21Table(models.Model):
     """
     Test adding decimals as actual types or as strings.
     
-    >>> obj = Bug21Table(a='decimal as decimal', d=decimal.Decimal('12.34'))
-    >>> obj.save()
-    >>> obj = Bug21Table(a='decimal as string', d=u'56.78')
-    >>> obj.save()
+    >>> Bug21Table(a='decimal as decimal', d=decimal.Decimal('12.34')).save()
+    >>> Bug21Table(a='decimal as string', d=u'56.78').save()
     >>> len(list(Bug21Table.objects.all()))
     2
     """
@@ -71,21 +68,14 @@ class Bug27Table(models.Model):
 class Bug23Table(models.Model):
     """
     Test inserting mixed NULL and non-NULL values.
-    
-    >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=1)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=1)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2="text2", myintfield=None)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=1)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=None)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=None)
-    >>> obj.save()
-    >>> obj = Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=None)
-    >>> obj.save()
+
+    >>> Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=1).save()
+    >>> Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=1).save()
+    >>> Bug23Table(mycharfield1="text1", mycharfield2="text2", myintfield=None).save()
+    >>> Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=1).save()
+    >>> Bug23Table(mycharfield1=None, mycharfield2="text2", myintfield=None).save()
+    >>> Bug23Table(mycharfield1="text1", mycharfield2=None, myintfield=None).save()
+    >>> Bug23Table(mycharfield1=None, mycharfield2=None, myintfield=None).save()
     >>> objs = list(Bug23Table.objects.all())
     >>> len(objs)
     7
@@ -100,23 +90,26 @@ class Bug23Table(models.Model):
     mycharfield2 = models.CharField(max_length=50, null=True)
     myintfield = models.IntegerField(null=True)
 
+
+# Bug 26 tables, RelatedA and RelatedB
 class RelatedB(models.Model):
     a = models.CharField(max_length=50)
     b = models.CharField(max_length=50)
     c = models.CharField(max_length=50)
 
-
 class RelatedA(models.Model):
-    """
-    #>>> b = RelatedB(a='this is a value', b="valueb", c="valuec")
-    #>>> b.save()
-    #>>> a = RelatedA(a="valuea", b=b)
-    #>>> a.save()
-    #>>> a = RelatedA(a="valuea", b=b)
-    #>>> a.save()
-    #>>> items = RelatedA.objects.select_related()[1:2]
-    #>>> len(items)
-    #1
-    """
     a = models.CharField(max_length=50)
     b = models.ForeignKey(RelatedB)
+
+class Bug26TestCase(TestCase):
+    """Test that slicing queries w/ duplicate column names works."""
+
+    def testWithDuplicateColumnNames(self):
+        b = RelatedB(a='this is a value', b="valueb", c="valuec")
+        b.save()
+        
+        RelatedA(a="valuea", b=b).save()
+        RelatedA(a="valuea", b=b).save()
+
+        items = RelatedA.objects.select_related()[1:2]
+        self.assertEqual(len(items), 1)

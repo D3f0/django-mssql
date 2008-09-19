@@ -1,8 +1,7 @@
 from django.db import models
 from django.core.paginator import Paginator
-
 from django.test import TestCase
-#import unittest
+
 
 class FirstTable(models.Model):
     b = models.CharField(max_length=100)

@@ -12,10 +12,8 @@ class BaseModel(models.Model):
 
 class TableNullChar(BaseModel):
     """
-    >>> obj = TableNullChar(val=None)
-    >>> obj.save()
-    >>> obj = TableNullChar(val="This is my string value.")
-    >>> obj.save()
+    >>> TableNullChar(val=None).save()
+    >>> TableNullChar(val="This is my string value.").save()
     >>> len(list(TableNullChar.objects.all()))
     2
     """
@@ -23,10 +21,8 @@ class TableNullChar(BaseModel):
     
 class TableNullText(BaseModel):
     """
-    >>> obj = TableNullText(val=None)
-    >>> obj.save()
-    >>> obj = TableNullText(val="This is my string value.")
-    >>> obj.save()
+    >>> TableNullText(val=None).save()
+    >>> TableNullText(val="This is my string value.").save()
     >>> len(list(TableNullText.objects.all()))
     2
     """
@@ -34,10 +30,8 @@ class TableNullText(BaseModel):
 
 class TableNullInteger(BaseModel):
     """
-    >>> obj = TableNullInteger(val=None)
-    >>> obj.save()
-    >>> obj = TableNullInteger(val=39482)
-    >>> obj.save()
+    >>> TableNullInteger(val=None).save()
+    >>> TableNullInteger(val=39482).save()
     >>> len(list(TableNullInteger.objects.all()))
     2
     """
@@ -45,10 +39,8 @@ class TableNullInteger(BaseModel):
 
 class TableNullDateTime(BaseModel):
     """
-    >>> obj = TableNullDateTime(val=None)
-    >>> obj.save()
-    >>> obj = TableNullDateTime(val=datetime.datetime(2009,1,1,4,3,5))
-    >>> obj.save()
+    >>> TableNullDateTime(val=None).save()
+    >>> TableNullDateTime(val=datetime.datetime(2009,1,1,4,3,5)).save()
     >>> len(list(TableNullDateTime.objects.all()))
     2
     """
@@ -56,10 +48,8 @@ class TableNullDateTime(BaseModel):
 
 class TableNullDate(BaseModel):
     """
-    >>> obj = TableNullDate(val=None)
-    >>> obj.save()
-    >>> obj = TableNullDate(val=datetime.date(2009,1,1))
-    >>> obj.save()
+    >>> TableNullDate(val=None).save()
+    >>> TableNullDate(val=datetime.date(2009,1,1)).save()
     >>> len(list(TableNullDate.objects.all()))
     2
     """
@@ -70,10 +60,8 @@ class TableNullTime(BaseModel):
     This test isn't expected to work on SQL Server 2005,
     as there is no bare "time" type.
     
-    obj = TableNullTime(val=None)
-    obj.save()
-    obj = TableNullTime(val=datetime.time(2,34,2))
-    obj.save()
+    TableNullTime(val=None).save()
+    TableNullTime(val=datetime.time(2,34,2)).save()
     len(list(TableNullTime.objects.all()))
     2
     """
@@ -81,12 +69,9 @@ class TableNullTime(BaseModel):
 
 class TableNullBoolean(BaseModel):
     """
-    >>> obj = TableNullBoolean(val=None)
-    >>> obj.save()
-    >>> obj = TableNullBoolean(val=True)
-    >>> obj.save()
-    >>> obj = TableNullBoolean(val=False)
-    >>> obj.save()
+    >>> TableNullBoolean(val=None).save()
+    >>> TableNullBoolean(val=True).save()
+    >>> TableNullBoolean(val=False).save()
     >>> len(list(TableNullBoolean.objects.all()))
     3
     """
@@ -94,12 +79,9 @@ class TableNullBoolean(BaseModel):
 
 class TableNullNullBoolean(BaseModel):
     """
-    >>> obj = TableNullNullBoolean(val=None)
-    >>> obj.save()
-    >>> obj = TableNullNullBoolean(val=True)
-    >>> obj.save()
-    >>> obj = TableNullNullBoolean(val=False)
-    >>> obj.save()
+    >>> TableNullNullBoolean(val=None).save()
+    >>> TableNullNullBoolean(val=True).save()
+    >>> TableNullNullBoolean(val=False).save()
     >>> len(list(TableNullNullBoolean.objects.all()))
     3
     """
@@ -107,12 +89,10 @@ class TableNullNullBoolean(BaseModel):
 
 class TableNullDecimal(BaseModel):
     """
-    >>> obj = TableNullDecimal(val=None)
-    >>> obj.save()
-    
+    >>> TableNullDecimal(val=None).save()
+   
     Try a value at the top end of the specified precision/scale
-    >>> obj = TableNullDecimal(val=decimal.Decimal('99.99'))
-    >>> obj.save()
+    >>> TableNullDecimal(val=decimal.Decimal('99.99')).save()
     
     >>> len(list(TableNullDecimal.objects.all()))
     2
@@ -121,10 +101,8 @@ class TableNullDecimal(BaseModel):
 
 class TableNullFloat(BaseModel):
     """
-    >>> obj = TableNullFloat(val=None)
-    >>> obj.save()
-    >>> obj = TableNullFloat(val=34.3)
-    >>> obj.save()
+    >>> TableNullFloat(val=None).save()
+    >>> TableNullFloat(val=34.3).save()
     >>> len(list(TableNullFloat.objects.all()))
     2
     """
