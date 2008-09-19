@@ -77,5 +77,5 @@ TEMPLATE_DIRS = (
 INSTALLED_APPS = (
     'regressiontests',
 	'slicing',
-	'myapp',
+	'nulls',
 )
