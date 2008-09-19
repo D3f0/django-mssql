@@ -8,13 +8,15 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         return [row[0] for row in cursor.fetchall()]
     
     def _is_auto_field(self, cursor, table_name, column_name):
-        """Checks whether column is an identity column, using COLUMNPROPERTY."""
-        # COLUMNPROPERTY: http://msdn2.microsoft.com/en-us/library/ms174968.aspx
+        """Checks whether column is an identity column, using COLUMNPROPERTY.
+        
+        See: http://msdn2.microsoft.com/en-us/library/ms174968.aspx
+        """
         sql = "SELECT COLUMNPROPERTY(OBJECT_ID(N'%s'), N'%s', 'IsIdentity')" % \
             (table_name, column_name)
-    
+
         cursor.execute(sql)      
-        return cursor.fetchall()[0][0]
+        return cursor.fetchone()[0]
     
     def get_table_description(self, cursor, table_name, identity_check=True):
         """Returns a description of the table, with DB-API cursor.description interface.
@@ -48,30 +50,30 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         source_field_dict = self._name_to_index(cursor, table_name)
         
         sql = """
-SELECT
-COLUMN_NAME = FK_COLS.COLUMN_NAME,
-REFERENCED_TABLE_NAME = PK.TABLE_NAME,
-REFERENCED_COLUMN_NAME = PK_COLS.COLUMN_NAME
-FROM INFORMATION_SCHEMA.REFERENTIAL_CONSTRAINTS REF_CONST
-JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS FK
-	ON REF_CONST.CONSTRAINT_CATALOG = FK.CONSTRAINT_CATALOG
-	AND REF_CONST.CONSTRAINT_SCHEMA = FK.CONSTRAINT_SCHEMA
-	AND REF_CONST.CONSTRAINT_NAME = FK.CONSTRAINT_NAME
-	AND FK.CONSTRAINT_TYPE = 'FOREIGN KEY'
+select
+    column_name = fk_cols.column_name,
+    referenced_table_name = pk.table_name,
+    referenced_column_name = pk_cols.column_name
+from information_schema.referential_constraints ref_const
+join information_schema.table_constraints fk
+	on ref_const.constraint_catalog = fk.constraint_catalog
+	and ref_const.constraint_schema = fk.constraint_schema
+	and ref_const.constraint_name = fk.constraint_name
+	and fk.constraint_type = 'foreign key'
 
-JOIN INFORMATION_SCHEMA.TABLE_CONSTRAINTS PK 
-	ON REF_CONST.UNIQUE_CONSTRAINT_CATALOG = PK.CONSTRAINT_CATALOG
-	AND REF_CONST.UNIQUE_CONSTRAINT_SCHEMA = PK.CONSTRAINT_SCHEMA
-	AND REF_CONST.UNIQUE_CONSTRAINT_NAME = PK.CONSTRAINT_NAME
-	AND PK.CONSTRAINT_TYPE = 'PRIMARY KEY'
+join information_schema.table_constraints pk 
+	on ref_const.unique_constraint_catalog = pk.constraint_catalog
+	and ref_const.unique_constraint_schema = pk.constraint_schema
+	and ref_const.unique_constraint_name = pk.constraint_name
+	and pk.constraint_type = 'primary key'
 
-JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE FK_COLS 
-	ON REF_CONST.CONSTRAINT_NAME = FK_COLS.CONSTRAINT_NAME
+join information_schema.key_column_usage fk_cols 
+	on ref_const.constraint_name = fk_cols.constraint_name
 
-JOIN INFORMATION_SCHEMA.KEY_COLUMN_USAGE PK_COLS 
-	ON PK.CONSTRAINT_NAME = PK_COLS.CONSTRAINT_NAME
+join information_schema.key_column_usage pk_cols 
+	on pk.constraint_name = pk_cols.constraint_name
 where
-	FK.TABLE_NAME = %s"""
+	fk.table_name = %s"""
         cursor.execute(sql,[table_name])
         relations = cursor.fetchall()
         relation_map = dict()
@@ -118,12 +120,11 @@ where
         indexes = dict()
         
         for column_name, unique, primary_key in constraints:
-            column_name = column_name.lower()
-            indexes[column_name] = {"primary_key":primary_key, "unique":unique}
+            indexes[column_name.lower()] = {"primary_key":primary_key, "unique":unique}
         
         return indexes
-        
-    
+
+
     data_types_reverse = {
         ado_consts.AUTO_FIELD_MARKER: 'AutoField',
         ado_consts.adBoolean: 'BooleanField',

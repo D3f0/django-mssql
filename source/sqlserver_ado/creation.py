@@ -1,6 +1,6 @@
 # This dictionary maps Field objects to their associated Server Server column
 # types, as strings. Column-type strings can contain format strings; they'll
-# be interpolated against the values of Field.__dict__ before being output.
+# be interpolated against the values of Field.__dict__.
 from django.db.backends.creation import BaseDatabaseCreation
 
 class DatabaseCreation(BaseDatabaseCreation):
