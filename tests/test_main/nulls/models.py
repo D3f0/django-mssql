@@ -12,8 +12,8 @@ class BaseModel(models.Model):
 
 class TableNullChar(BaseModel):
     """
-    >>> TableNullChar(val=None).save()
-    >>> TableNullChar(val="This is my string value.").save()
+    >>> for val in (None, "This is my string value."):
+    ...     TableNullChar(val=val).save()
     >>> len(list(TableNullChar.objects.all()))
     2
     """
@@ -21,8 +21,8 @@ class TableNullChar(BaseModel):
     
 class TableNullText(BaseModel):
     """
-    >>> TableNullText(val=None).save()
-    >>> TableNullText(val="This is my string value.").save()
+    >>> for val in (None, "This is my string value."):
+    ...     TableNullText(val=val).save()
     >>> len(list(TableNullText.objects.all()))
     2
     """
@@ -30,8 +30,8 @@ class TableNullText(BaseModel):
 
 class TableNullInteger(BaseModel):
     """
-    >>> TableNullInteger(val=None).save()
-    >>> TableNullInteger(val=39482).save()
+    >>> for val in (None, 32768):
+    ...     TableNullInteger(val=val).save()
     >>> len(list(TableNullInteger.objects.all()))
     2
     """
@@ -39,8 +39,8 @@ class TableNullInteger(BaseModel):
 
 class TableNullDateTime(BaseModel):
     """
-    >>> TableNullDateTime(val=None).save()
-    >>> TableNullDateTime(val=datetime.datetime(2009,1,1,4,3,5)).save()
+    >>> for val in (None, datetime.datetime(2009,1,1,4,3,5)):
+    ...     TableNullDateTime(val=val).save()
     >>> len(list(TableNullDateTime.objects.all()))
     2
     """
@@ -48,8 +48,8 @@ class TableNullDateTime(BaseModel):
 
 class TableNullDate(BaseModel):
     """
-    >>> TableNullDate(val=None).save()
-    >>> TableNullDate(val=datetime.date(2009,1,1)).save()
+    >>> for val in (None, datetime.date(2009,1,1)):
+    ...     TableNullDate(val=val).save()
     >>> len(list(TableNullDate.objects.all()))
     2
     """
@@ -69,9 +69,8 @@ class TableNullTime(BaseModel):
 
 class TableNullBoolean(BaseModel):
     """
-    >>> TableNullBoolean(val=None).save()
-    >>> TableNullBoolean(val=True).save()
-    >>> TableNullBoolean(val=False).save()
+    >>> for val in (None, True, False):
+    ...     TableNullBoolean(val=val).save()
     >>> len(list(TableNullBoolean.objects.all()))
     3
     """
@@ -79,9 +78,8 @@ class TableNullBoolean(BaseModel):
 
 class TableNullNullBoolean(BaseModel):
     """
-    >>> TableNullNullBoolean(val=None).save()
-    >>> TableNullNullBoolean(val=True).save()
-    >>> TableNullNullBoolean(val=False).save()
+    >>> for val in (None, True, False):
+    ...     TableNullNullBoolean(val=val).save()
     >>> len(list(TableNullNullBoolean.objects.all()))
     3
     """
@@ -89,11 +87,9 @@ class TableNullNullBoolean(BaseModel):
 
 class TableNullDecimal(BaseModel):
     """
-    >>> TableNullDecimal(val=None).save()
-   
-    Try a value at the top end of the specified precision/scale
-    >>> TableNullDecimal(val=decimal.Decimal('99.99')).save()
-    
+    Try a value at the top end of the specified precision/scale.
+    >>> for val in (None, decimal.Decimal('99.99')):
+    ...     TableNullDecimal(val=val).save()
     >>> len(list(TableNullDecimal.objects.all()))
     2
     """
@@ -101,8 +97,8 @@ class TableNullDecimal(BaseModel):
 
 class TableNullFloat(BaseModel):
     """
-    >>> TableNullFloat(val=None).save()
-    >>> TableNullFloat(val=34.3).save()
+    >>> for val in (None, 34.3):
+    ...     TableNullFloat(val=val).save()
     >>> len(list(TableNullFloat.objects.all()))
     2
     """
