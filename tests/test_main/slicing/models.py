@@ -47,10 +47,10 @@ class PagingTestCase(TestCase):
             
     def testPerRowSelect(self):
         a1_pk = FirstTable.objects.get(b='A1').pk
-
         q = SecondTable.objects.filter(a=a1_pk).order_by('b').select_related(depth=1).extra(select=
         {
-            'extra_column': "select paging_FirstTable.id from paging_FirstTable where paging_FirstTable.id=%s" % (a1_pk,)
+        'extra_column': 
+            "select slicing_FirstTable.id from slicing_FirstTable where slicing_FirstTable.id=%s" % (a1_pk,)
         })
         
         for i in (1,2,3):

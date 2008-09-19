@@ -1,0 +1,1 @@
+[{"pk": 1, "model": "slicing.firsttable", "fields": {"c": "test", "b": "A1"}}, {"pk": 2, "model": "slicing.firsttable", "fields": {"c": "test", "b": "A2"}}, {"pk": 1, "model": "slicing.secondtable", "fields": {"a": 1, "b": "B1"}}, {"pk": 2, "model": "slicing.secondtable", "fields": {"a": 1, "b": "B2"}}, {"pk": 3, "model": "slicing.secondtable", "fields": {"a": 1, "b": "B3"}}]

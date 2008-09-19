@@ -76,6 +76,6 @@ TEMPLATE_DIRS = (
 
 INSTALLED_APPS = (
     'nulls',
-	'paging',
+	'slicing',
 	'myapp',
 )
