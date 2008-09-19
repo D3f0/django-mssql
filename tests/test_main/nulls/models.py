@@ -1,6 +1,8 @@
 import datetime
 import decimal
 from django.db import models
+from django.test import TestCase
+
 
 class BaseModel(models.Model):
     def __unicode__(self):
@@ -8,52 +10,6 @@ class BaseModel(models.Model):
 
     class Meta:
         abstract = True
-
-
-class TableNullChar(BaseModel):
-    """
-    >>> for val in (None, "This is my string value."):
-    ...     TableNullChar(val=val).save()
-    >>> len(list(TableNullChar.objects.all()))
-    2
-    """
-    val = models.CharField(null=True, max_length=100)
-    
-class TableNullText(BaseModel):
-    """
-    >>> for val in (None, "This is my string value."):
-    ...     TableNullText(val=val).save()
-    >>> len(list(TableNullText.objects.all()))
-    2
-    """
-    val = models.TextField(null=True)
-
-class TableNullInteger(BaseModel):
-    """
-    >>> for val in (None, 32768):
-    ...     TableNullInteger(val=val).save()
-    >>> len(list(TableNullInteger.objects.all()))
-    2
-    """
-    val = models.IntegerField(null=True)
-
-class TableNullDateTime(BaseModel):
-    """
-    >>> for val in (None, datetime.datetime(2009,1,1,4,3,5)):
-    ...     TableNullDateTime(val=val).save()
-    >>> len(list(TableNullDateTime.objects.all()))
-    2
-    """
-    val = models.DateTimeField(null=True)
-
-class TableNullDate(BaseModel):
-    """
-    >>> for val in (None, datetime.date(2009,1,1)):
-    ...     TableNullDate(val=val).save()
-    >>> len(list(TableNullDate.objects.all()))
-    2
-    """
-    val = models.DateField(null=True)
 
 class TableNullTime(BaseModel):
     """
@@ -67,39 +23,65 @@ class TableNullTime(BaseModel):
     """
     val = models.TimeField(null=True)
 
+
+class TableNullChar(BaseModel):
+    val = models.CharField(null=True, max_length=100)
+    
+class TableNullText(BaseModel):
+    val = models.TextField(null=True)
+
+class TableNullInteger(BaseModel):
+    val = models.IntegerField(null=True)
+
+class TableNullDateTime(BaseModel):
+    val = models.DateTimeField(null=True)
+
+class TableNullDate(BaseModel):
+    val = models.DateField(null=True)
+
 class TableNullBoolean(BaseModel):
-    """
-    >>> for val in (None, True, False):
-    ...     TableNullBoolean(val=val).save()
-    >>> len(list(TableNullBoolean.objects.all()))
-    3
-    """
     val = models.BooleanField(null=True)
 
 class TableNullNullBoolean(BaseModel):
-    """
-    >>> for val in (None, True, False):
-    ...     TableNullNullBoolean(val=val).save()
-    >>> len(list(TableNullNullBoolean.objects.all()))
-    3
-    """
     val = models.NullBooleanField(null=True)
 
 class TableNullDecimal(BaseModel):
-    """
-    Try a value at the top end of the specified precision/scale.
-    >>> for val in (None, decimal.Decimal('99.99')):
-    ...     TableNullDecimal(val=val).save()
-    >>> len(list(TableNullDecimal.objects.all()))
-    2
-    """
     val = models.DecimalField(null=True, max_digits=4, decimal_places=2)
 
 class TableNullFloat(BaseModel):
-    """
-    >>> for val in (None, 34.3):
-    ...     TableNullFloat(val=val).save()
-    >>> len(list(TableNullFloat.objects.all()))
-    2
-    """
     val = models.FloatField(null=True)
+
+
+class NullTests(TestCase):
+    def _run(self, model, values):
+        for v in values:
+            model(val=v).save()
+            
+        self.assertEquals(len(list(model.objects.all())), len(values))
+
+    def testChar(self):
+        self._run(TableNullChar, (None, "This is my string value."))
+        
+    def testText(self):
+        self._run(TableNullText, (None, "This is my string value."))
+        
+    def testInteger(self):
+        self._run(TableNullInteger, (None, 32768))
+        
+    def testDateTime(self):
+        self._run(TableNullDateTime,(None, datetime.datetime(2009,1,1,4,3,5)))
+     
+    def testDate(self):
+        self._run(TableNullDate, (None, datetime.date(2009,1,1)))
+     
+    def testBoolean(self):
+        self._run(TableNullNullBoolean, (None, True, False))
+
+    def testNullBoolean(self):
+        self._run(TableNullBoolean, (None, True, False))
+
+    def testFloat(self):
+        self._run(TableNullFloat, (None, 34.3))
+
+    def testDecimal(self):
+        self._run(TableNullDecimal, (None, decimal.Decimal('99.99')))
