@@ -12,6 +12,7 @@ class DatabaseOperations(BaseDatabaseOperations):
     	quoted_field_name = self.quote_name(field_name)
 
         if lookup_type == 'year':
+            print "YEAR CHECKED"
             return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/01/01')" % quoted_field_name
         if lookup_type == 'month':
             return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/' + Convert(varchar, DATEPART(month, %s)) + '/01')" %\
@@ -127,3 +128,14 @@ class DatabaseOperations(BaseDatabaseOperations):
         if value is None or value == '':
             return None
         return value # Should be a decimal type (or string)
+
+    def year_lookup_bounds(self, value):
+        """
+        Returns a two-elements list with the lower and upper bound to be used
+        with a BETWEEN operator to query a field value using a year lookup
+
+        `value` is an int, containing the looked-up year.
+        """
+        first = '%s-01-01 00:00:00'
+        second = '%s-12-31 23:59:59'
+        return [first % value, second % value]

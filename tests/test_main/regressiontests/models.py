@@ -113,3 +113,37 @@ class Bug26TestCase(TestCase):
 
         items = RelatedA.objects.select_related()[1:2]
         self.assertEqual(len(items), 1)
+        
+class Bug34DatetimeTable(models.Model):
+    """Ensure that __year filters work with datetime fields.
+    
+    >>> Bug34DatetimeTable(posted=datetime.date(2007,1,1)).save()
+    >>> Bug34DatetimeTable(posted=datetime.date(2008,2,2)).save()
+    >>> Bug34DatetimeTable(posted=datetime.date(2009,3,3)).save()
+    >>> len((Bug34DatetimeTable.objects.filter(posted__day=3)))
+    1
+    >>> len(list(Bug34DatetimeTable.objects.filter(posted__month=2)))
+    1
+    >>> len(list(Bug34DatetimeTable.objects.filter(posted__year=2008)))
+    1
+    >>> len(list(Bug34DatetimeTable.objects.filter(posted__year=2005)))
+    0
+    """
+    posted = models.DateTimeField()
+        
+class Bug34DateTable(models.Model):
+    """Ensure that __year filters work with date fields.
+    
+    >>> Bug34DateTable(posted=datetime.date(2007,1,1)).save()
+    >>> Bug34DateTable(posted=datetime.date(2008,2,2)).save()
+    >>> Bug34DateTable(posted=datetime.date(2009,3,3)).save()
+    >>> len((Bug34DateTable.objects.filter(posted__day=3)))
+    1
+    >>> len(list(Bug34DateTable.objects.filter(posted__month=2)))
+    1
+    >>> len(list(Bug34DateTable.objects.filter(posted__year=2008)))
+    1
+    >>> len(list(Bug34DateTable.objects.filter(posted__year=2005)))
+    0
+    """
+    posted = models.DateField()
