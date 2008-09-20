@@ -45,8 +45,6 @@ import win32com.client
 import pythoncom
 pythoncom.__future_currency__ = True
 
-import pywintypes
-
 from ado_consts import *
 
 # DB API default values
@@ -390,10 +388,11 @@ class Cursor(object):
             recordset = self.cmd.Execute()
             self.rowcount = recordset[1]
             self._description_from_recordset(recordset[0])
-        except pywintypes.com_error, e:
-            self._raiseCursorError(DatabaseError, e.args)
-        except:
-            self._raiseCursorError(DatabaseError, None)
+        except Exception, e:
+            _message = ""
+            if hasattr(e, 'args'): _message += str(e.args)+"\n"
+            _message += "Command:\n%s\nParameters:\n%s" %  (self.cmd.CommandText, format_parameters(self.cmd.Parameters, True))
+            self._raiseCursorError(DatabaseError, _message)
 
 
     def callproc(self, procname, parameters=None):
