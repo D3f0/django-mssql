@@ -539,13 +539,12 @@ class Cursor(object):
             self._raiseCursorError(Error, None)
             return None
 
-        try:
-            recordset = self.rs.NextRecordset()[0]
-            if recordset is not None:
-                self._description_from_recordset(recordset)
-                return True
-        except pywintypes.com_error, e:
-            self._raiseCursorError(NotSupportedError, e.args)
+        recordset = self.rs.NextRecordset()[0]
+        if recordset is None:
+            return None
+            
+        self._description_from_recordset(recordset)
+        return True
 
     def setinputsizes(self, sizes): pass
     def setoutputsize(self, size, column=None): pass

@@ -35,8 +35,8 @@ class test_dbapi(dbapi20.DatabaseAPI20Test):
             cur.execute(arg)
     
     # This should create the "lower" sproc.
-    def _callproc_setup(self):
-        self._try_run(
+    def _callproc_setup(self, cur):
+        self._try_run2(cur,
             """IF OBJECT_ID(N'[dbo].[to_lower]', N'P') IS NOT NULL DROP PROCEDURE [dbo].[to_lower]""",
             """
 CREATE PROCEDURE to_lower

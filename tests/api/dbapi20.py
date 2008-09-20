@@ -328,6 +328,7 @@ class DatabaseAPI20Test(unittest.TestCase):
         con = self._connect()
         try:
             cur = con.cursor()
+            self._callproc_setup(cur)
             # Execute and get new parameters
             values = cur.callproc('to_lower', ('FOO',))
             self.assertEqual(len(values),1, 'callproc didnt return the input values')
