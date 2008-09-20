@@ -100,10 +100,6 @@ END
         finally:
             con.close()            
     
-    # Don't need exceptions mirrored on connections.
-    def test_ExceptionsAsConnectionAttributes(self): 
-        pass
-        
     # Don't need setoutputsize tests.
     def test_setoutputsize(self): 
         pass

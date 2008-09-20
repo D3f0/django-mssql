@@ -2,64 +2,16 @@
 ''' Python DB API 2.0 driver compliance unit test suite. 
     
     This software is Public Domain and may be used without restrictions.
-
- "Now we have booze and barflies entering the discussion, plus rumours of
-  DBAs on drugs... and I won't tell you what flashes through my mind each
-  time I read the subject line with 'Anal Compliance' in it.  All around
-  this is turning out to be a thoroughly unwholesome unit test."
-
-    -- Ian Bicking
+    http://www.stuartbishop.net/Software/DBAPI20TestSuite/index.html
 '''
 
-__rcs_id__  = '$Id: dbapi20.py,v 1.10 2003/10/09 03:14:14 zenzen Exp $'
-__version__ = '$Revision: 1.10 $'[11:-2]
-__author__ = 'Stuart Bishop <zen@shangri-la.dropbear.id.au>'
+__rcs_id__  = '$Id: dbapi20.py,v 1.11 2005/01/02 02:41:01 zenzen Exp $'
+__version__ = '$Revision: 1.11 $'[11:-2]
+__author__ = 'Stuart Bishop <stuart@stuartbishop.net>'
 
 import unittest
 import time
 
-# $Log: dbapi20.py,v $
-# Revision 1.10  2003/10/09 03:14:14  zenzen
-# Add test for DB API 2.0 optional extension, where database exceptions
-# are exposed as attributes on the Connection object.
-#
-# Revision 1.9  2003/08/13 01:16:36  zenzen
-# Minor tweak from Stefan Fleiter
-#
-# Revision 1.8  2003/04/10 00:13:25  zenzen
-# Changes, as per suggestions by M.-A. Lemburg
-# - Add a table prefix, to ensure namespace collisions can always be avoided
-#
-# Revision 1.7  2003/02/26 23:33:37  zenzen
-# Break out DDL into helper functions, as per request by David Rushby
-#
-# Revision 1.6  2003/02/21 03:04:33  zenzen
-# Stuff from Henrik Ekelund:
-#     added test_None
-#     added test_nextset & hooks
-#
-# Revision 1.5  2003/02/17 22:08:43  zenzen
-# Implement suggestions and code from Henrik Eklund - test that cursor.arraysize
-# defaults to 1 & generic cursor.callproc test added
-#
-# Revision 1.4  2003/02/15 00:16:33  zenzen
-# Changes, as per suggestions and bug reports by M.-A. Lemburg,
-# Matthew T. Kromer, Federico Di Gregorio and Daniel Dittmar
-# - Class renamed
-# - Now a subclass of TestCase, to avoid requiring the driver stub
-#   to use multiple inheritance
-# - Reversed the polarity of buggy test in test_description
-# - Test exception heirarchy correctly
-# - self.populate is now self._populate(), so if a driver stub
-#   overrides self.ddl1 this change propogates
-# - VARCHAR columns now have a width, which will hopefully make the
-#   DDL even more portible (this will be reversed if it causes more problems)
-# - cursor.rowcount being checked after various execute and fetchXXX methods
-# - Check for fetchall and fetchmany returning empty lists after results
-#   are exhausted (already checking for empty lists if select retrieved
-#   nothing
-# - Fix bugs in test_setoutputsize_basic and test_setinputsizes
-#
 
 class DatabaseAPI20Test(unittest.TestCase):
     ''' Test a database self.driver for DB API 2.0 compatibility.
@@ -162,9 +114,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             # Must exist
             paramstyle = self.driver.paramstyle
             # Must be a valid value
-            self.failUnless(paramstyle in (
-                'qmark','numeric','named','format','pyformat'
-                ))
+            self.failUnless(paramstyle in ('qmark','numeric','named','format','pyformat'))
         except AttributeError:
             self.fail("Driver doesn't define paramstyle")
 
@@ -173,27 +123,13 @@ class DatabaseAPI20Test(unittest.TestCase):
         # defined heirarchy.
         self.failUnless(issubclass(self.driver.Warning,StandardError))
         self.failUnless(issubclass(self.driver.Error,StandardError))
-        self.failUnless(
-            issubclass(self.driver.InterfaceError,self.driver.Error)
-            )
-        self.failUnless(
-            issubclass(self.driver.DatabaseError,self.driver.Error)
-            )
-        self.failUnless(
-            issubclass(self.driver.OperationalError,self.driver.Error)
-            )
-        self.failUnless(
-            issubclass(self.driver.IntegrityError,self.driver.Error)
-            )
-        self.failUnless(
-            issubclass(self.driver.InternalError,self.driver.Error)
-            )
-        self.failUnless(
-            issubclass(self.driver.ProgrammingError,self.driver.Error)
-            )
-        self.failUnless(
-            issubclass(self.driver.NotSupportedError,self.driver.Error)
-            )
+        self.failUnless(issubclass(self.driver.InterfaceError,self.driver.Error))
+        self.failUnless(issubclass(self.driver.DatabaseError,self.driver.Error))
+        self.failUnless(issubclass(self.driver.OperationalError,self.driver.Error))
+        self.failUnless(issubclass(self.driver.IntegrityError,self.driver.Error))
+        self.failUnless(issubclass(self.driver.InternalError,self.driver.Error))
+        self.failUnless(issubclass(self.driver.ProgrammingError,self.driver.Error))
+        self.failUnless(issubclass(self.driver.NotSupportedError,self.driver.Error))
 
     def test_ExceptionsAsConnectionAttributes(self):
         # OPTIONAL EXTENSION
@@ -248,9 +184,7 @@ class DatabaseAPI20Test(unittest.TestCase):
             cur1 = con.cursor()
             cur2 = con.cursor()
             self.executeDDL1(cur1)
-            cur1.execute("insert into %sbooze values ('Victoria Bitter')" % (
-                self.table_prefix
-                ))
+            cur1.execute("insert into %sbooze values ('Victoria Bitter')" % (self.table_prefix))
             cur2.execute("select name from %sbooze" % self.table_prefix)
             booze = cur2.fetchall()
             self.assertEqual(len(booze),1)
@@ -701,19 +635,10 @@ class DatabaseAPI20Test(unittest.TestCase):
 	    number of rows in booze then "name from booze"
         '''
         raise NotImplementedError,'Helper not implemented'
-        #sql="""
-        #    create procedure deleteme as
-        #    begin
-        #        select count(*) from booze
-        #        select name from booze
-        #    end
-        #"""
-        #cur.execute(sql)
 
     def help_nextset_tearDown(self,cur):
         'If cleaning up is needed after nextSetTest'
         raise NotImplementedError,'Helper not implemented'
-        #cur.execute("drop procedure deleteme")
 
     def test_nextset(self):
         con = self._connect()
@@ -807,9 +732,7 @@ class DatabaseAPI20Test(unittest.TestCase):
 
     def test_Timestamp(self):
         t1 = self.driver.Timestamp(2002,12,25,13,45,30)
-        t2 = self.driver.TimestampFromTicks(
-            time.mktime((2002,12,25,13,45,30,0,0,0))
-            )
+        t2 = self.driver.TimestampFromTicks(time.mktime((2002,12,25,13,45,30,0,0,0)))
         # Can we assume this? API doesn't specify, but it seems implied
         # self.assertEqual(str(t1),str(t2))
 
@@ -841,4 +764,3 @@ class DatabaseAPI20Test(unittest.TestCase):
         self.failUnless(hasattr(self.driver,'ROWID'),
             'module.ROWID must be defined.'
             )
-
