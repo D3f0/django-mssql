@@ -1,20 +1,17 @@
-import unittest
-
-# Django settings for testbackend project.
-def hack_path():
-    import os, sys
-    common_path = os.path.join(os.path.abspath(os.path.dirname(".")), "..")
-    sys.path.append(common_path)
-
-hack_path()
-from dbsettings import *
-
+# Base is used to get connection string using Django settings
+from sqlserver_ado import base
+# Internal dbapi module
 from sqlserver_ado import dbapi
+
+# Base unit test
 import dbapi20
 
 class test_dbapi(dbapi20.DatabaseAPI20Test):
     driver = dbapi
-    connect_args = [ make_connection_string() ]
+    connect_args = [ base.connection_string_from_settings() ]
+    
+#    def _connect(self):
+#        return connection
     
     def _try_run(self, *args):
         con = self._connect()
@@ -119,7 +116,3 @@ end
 
     def help_nextset_tearDown(self,cur):
         pass
-   
-suite = unittest.makeSuite(test_dbapi, 'test')
-testRunner = unittest.TextTestRunner(verbosity=9)
-print testRunner.run(suite)

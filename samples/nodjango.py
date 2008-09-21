@@ -38,7 +38,7 @@ def sproc_2(connection):
     c.close()
 
 def sproc_2b(connection):
-    "Calls a sproc using 'callproc'; None isn't supported as a parameter yet."
+    "Calls a sproc using 'callproc'."
     c = connection.cursor()
     c.callproc('uspAppUser_GetAll', [0])
     _print_names(c.fetchall())

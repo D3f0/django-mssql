@@ -27,6 +27,32 @@ def _looks_like_ipaddress(address):
             return False
     return True
 
+def connection_string_from_settings():
+    from django.conf import settings
+    return make_connection_string(settings)
+
+def make_connection_string(settings):
+    if settings.DATABASE_NAME == '':
+        raise ImproperlyConfigured("You need to specify a DATABASE_NAME in your Django settings file.")
+
+    datasource = settings.DATABASE_HOST
+    if not datasource:
+        datasource = "127.0.0.1"
+
+    # If a port is given, force a TCP/IP connection. The host should be an IP address in this case.
+    if settings.DATABASE_PORT != '':
+        if not _looks_like_ipaddress(datasource):
+            raise ImproperlyConfigured("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
+        datasource = '%s,%s;Network Library=DBMSSOCN' % (datasource, settings.DATABASE_PORT)
+
+    # If no user is specified, use integrated security.
+    if settings.DATABASE_USER != '':
+        auth_string = "UID=%s;PWD=%s" % (settings.DATABASE_USER, settings.DATABASE_PASSWORD)
+    else:
+        auth_string = "Integrated Security=SSPI"
+
+    return "PROVIDER=SQLOLEDB;DATA SOURCE=%s;Initial Catalog=%s;%s" % (datasource, settings.DATABASE_NAME, auth_string)
+
 class DatabaseWrapper(BaseDatabaseWrapper):
     operators = {
         "exact": "= %s",
@@ -54,34 +80,11 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.introspection = DatabaseIntrospection(self)
         self.validation = BaseDatabaseValidation()
         
-
     def _cursor(self, settings):
         # Connection strings courtesy of:
         # http://www.connectionstrings.com/?carrier=sqlserver
 
         if self.connection is None:
-            if settings.DATABASE_NAME == '':
-                raise ImproperlyConfigured("You need to specify a DATABASE_NAME in your Django settings file.")
-
-            datasource = settings.DATABASE_HOST
-            if not datasource:
-                datasource = "127.0.0.1"
-
-            # If a port is given, force a TCP/IP connection. The host should be an IP address in this case.
-            if settings.DATABASE_PORT != '':
-                if not _looks_like_ipaddress(datasource):
-                    raise ImproperlyConfigured("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
-                datasource = '%s,%s;Network Library=DBMSSOCN' % (datasource, settings.DATABASE_PORT)
-
-            # If no user is specified, use integrated security.
-            if settings.DATABASE_USER != '':
-                auth_string = "UID=%s;PWD=%s" % (settings.DATABASE_USER, settings.DATABASE_PASSWORD)
-            else:
-                auth_string = "Integrated Security=SSPI"
-
-            conn_string = "PROVIDER=SQLOLEDB;DATA SOURCE=%s;Initial Catalog=%s;%s" % \
-                (datasource, settings.DATABASE_NAME, auth_string)
-
-            self.connection = Database.connect(conn_string)
+            self.connection = Database.connect(make_connection_string(settings))
 
         return Database.Cursor(self.connection)

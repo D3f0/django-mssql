@@ -12,7 +12,6 @@ class DatabaseOperations(BaseDatabaseOperations):
     	quoted_field_name = self.quote_name(field_name)
 
         if lookup_type == 'year':
-            print "YEAR CHECKED"
             return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/01/01')" % quoted_field_name
         if lookup_type == 'month':
             return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/' + Convert(varchar, DATEPART(month, %s)) + '/01')" %\

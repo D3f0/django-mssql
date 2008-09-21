@@ -75,6 +75,7 @@ TEMPLATE_DIRS = (
 )
 
 INSTALLED_APPS = (
+    'apitest',
     'regressiontests',
 	'slicing',
 	'nulls',
