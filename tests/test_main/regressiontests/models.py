@@ -147,3 +147,21 @@ class Bug34DateTable(models.Model):
     0
     """
     posted = models.DateField()
+
+class Bug35ATable(models.Model):
+    """Ensure that multiple Postive Integer columns across tables don't 
+    create duplicate constraint names.
+    """
+    int1 = models.PositiveIntegerField()
+    int2 = models.PositiveIntegerField()
+    int3 = models.PositiveSmallIntegerField()
+    int4 = models.PositiveSmallIntegerField()
+
+class Bug35BTable(models.Model):
+    """Ensure that multiple Postive Integer columns across tables don't 
+    create duplicate constraint names.
+    """
+    int1 = models.PositiveIntegerField()
+    int2 = models.PositiveIntegerField()
+    int3 = models.PositiveSmallIntegerField()
+    int4 = models.PositiveSmallIntegerField()

@@ -19,8 +19,10 @@ class DatabaseCreation(BaseDatabaseCreation):
         'IPAddressField':    'nvarchar(15)',
         'NullBooleanField':  'bit',
         'OneToOneField':     'int',
-        'PositiveIntegerField': 'int CONSTRAINT [CK_int_pos_%(column)s] CHECK ([%(column)s] >= 0)',
-        'PositiveSmallIntegerField': 'smallint CONSTRAINT [CK_smallint_pos_%(column)s] CHECK ([%(column)s] >= 0)',
+        'PositiveIntegerField': 
+                'int CONSTRAINT [CK_int_pos_%(column)s_%(creation_counter)s] CHECK ([%(column)s] >= 0)',
+        'PositiveSmallIntegerField': 
+                'smallint CONSTRAINT [CK_smallint_pos_%(column)s_%(creation_counter)s] CHECK ([%(column)s] >= 0)',
         'SlugField':         'nvarchar(%(max_length)s)',
         'SmallIntegerField': 'smallint',
         'TextField':         'nvarchar(max)',

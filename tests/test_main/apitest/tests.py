@@ -116,3 +116,6 @@ end
 
     def help_nextset_tearDown(self,cur):
         pass
+        
+    def test_ExceptionsAsConnectionAttributes(self):
+        pass
