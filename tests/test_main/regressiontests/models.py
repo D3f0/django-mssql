@@ -165,3 +165,18 @@ class Bug35BTable(models.Model):
     int2 = models.PositiveIntegerField()
     int3 = models.PositiveSmallIntegerField()
     int4 = models.PositiveSmallIntegerField()
+
+class Bug35CModel(models.Model):
+    """Ensure that multiple Postive Integer columns across tables don't 
+    create duplicate constraint names when using inheritence.
+    """
+    age = models.PositiveIntegerField()
+
+    class Meta:
+        abstract = True
+
+class Bug35C1Table(Bug35CModel):
+    name = models.CharField(max_length=10)
+    
+class Bug35C2Table(Bug35CModel):
+    name = models.CharField(max_length=10)
