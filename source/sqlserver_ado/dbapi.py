@@ -98,16 +98,7 @@ def standardErrorHandler(connection, cursor, errorclass, errorvalue):
 class Error(StandardError): pass
 class Warning(StandardError): pass
 
-class InterfaceError(Error):
-    def __init__(self, inner_exception=None):
-        self.inner_exception = inner_exception
-
-    def __str__(self):
-        s = "InterfaceError"
-        if self.inner_exception is not None:
-            s += "\n" + str(self.inner_exception)
-        return s
-
+class InterfaceError(Error): pass
 class DatabaseError(Error): pass
 class InternalError(DatabaseError): pass
 class OperationalError(DatabaseError): pass
