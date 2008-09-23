@@ -169,6 +169,9 @@ class Bug35BTable(models.Model):
 class Bug35CModel(models.Model):
     """Ensure that multiple Postive Integer columns across tables don't 
     create duplicate constraint names when using inheritence.
+    
+    Test test for Bug35 is just the creation of the tables; there are no
+    other explicit tests.
     """
     age = models.PositiveIntegerField()
 
@@ -182,16 +185,32 @@ class Bug35C2Table(Bug35CModel):
     name = models.CharField(max_length=10)
 
 
-class Bug37Table(models.Model):
-    """Inserting duplicate keys should raise an Integrity Error.
-    >>> Bug37Table(pk=1).save(force_insert=True)
-    >>> try:
-    ...     Bug37Table(pk=1).save(force_insert=True)
-    ... except Exception, e:
-    ...     if isinstance(e, IntegrityError):
-    ...         print "Pass"
-    ...     else:
-    ...         print "Fail with %s" % type(e)
-    Pass
-    """
-    pass
+# Bug 26 tables, RelatedA and RelatedB
+class Bug37ATable(models.Model):
+    a = models.CharField(max_length=50)
+    b = models.CharField(max_length=50)
+    c = models.CharField(max_length=50)
+
+class Bug37BTable(models.Model):
+    d = models.CharField(max_length=50)
+    a = models.ForeignKey(Bug37ATable)
+
+class Bug37TestCase(TestCase):
+    """Test that IntegrityErrors are raised when appropriate."""
+
+    def testDuplicateKeysFails(self):
+        Bug37ATable(pk=1, a='a', b='b', c='c').save(force_insert=True)
+        try:
+            Bug37ATable(pk=1, a='a', b='b', c='c').save(force_insert=True)
+        except Exception, e:
+            self.failUnless(isinstance(e, IntegrityError), 'Expected IntegrityError but got: %s' % type(e))
+            
+    def testDeleteRelatedRecordFails(self):
+        a2 = Bug37ATable(a='a', b='b', c='c')
+        a2.save()
+        
+        Bug37BTable(d='d', a=a2).save()
+        try:
+            a2.delete()
+        except Exception, e:
+            self.failUnless(isinstance(e, IntegrityError), 'Expected IntegrityError but got: %s' % type(e))
