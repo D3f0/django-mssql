@@ -122,18 +122,16 @@ def connect(connection_string, timeout=30):
         http://www.connectionstrings.com/?carrier=sqlserver2005
     timeout -- A command timeout value, in seconds (default 30 seconds)
     """
-    pythoncom.CoInitialize()
-    c = win32com.client.Dispatch('ADODB.Connection')
-    c.CommandTimeout = timeout
-    c.ConnectionString = connection_string
-
     try:
+        pythoncom.CoInitialize()
+        c = win32com.client.Dispatch('ADODB.Connection')
+        c.CommandTimeout = timeout
+        c.ConnectionString = connection_string
         c.Open()
+        useTransactions = _use_transactions(c)
+        return Connection(c, useTransactions)
     except Exception, e:
-        raise DatabaseError(e, "Error opening connection: " + connection_string)
-
-    useTransactions = _use_transactions(c)
-    return Connection(c, useTransactions)
+        raise OperationalError(e, "Error opening connection: " + connection_string)
 
 def _use_transactions(c):
     """Return True if the given ADODB.Connection supports transations."""
@@ -284,14 +282,17 @@ class Connection(object):
             print 'SQL State: %s' % e.SQLState
             
     def _suggest_error_class(self):
-        """Introspect the current ADO Errors and determine an appropriate error class."""
+        """Introspect the current ADO Errors and determine an appropriate error class.
+        
+        Error.SQLState is a SQL-defined error condition, per the SQL specification:
+        http://www.contrib.andrew.cmu.edu/~shadow/sql/sql1992.txt
+        
+        The 23000 class of errors are integrity errors.
+        Error 40002 is a transactional integrity error.
+        """
         if self.adoConn is not None:
             for e in self.adoConn.Errors:
                 state = str(e.SQLState)
-                # 23000 are integrity errors
-                # 40002 is a transaction integrity error
-                # per SQL STATE definitions
-                # http://www.contrib.andrew.cmu.edu/~shadow/sql/sql1992.txt
                 if state.startswith('23') or state=='40002':
                     return IntegrityError
             
@@ -420,9 +421,15 @@ class Cursor(object):
         self.cmd.CommandText = procname
         self.cmd.Parameters.Refresh()
 
-        # Return value is 0th ADO parameter. Skip it.
-        for i, p in enumerate(tuple(self.cmd.Parameters)[1:]):
-            _configure_parameter(p, parameters[i])
+        try:
+            # Return value is 0th ADO parameter. Skip it.
+            for i, p in enumerate(tuple(self.cmd.Parameters)[1:]):
+                _configure_parameter(p, parameters[i])
+        except:
+            _message = u'Converting Parameter %s: %s, %s\n' %\
+                (p.Name, ado_type_name(p.Type), repr(parameters[i]))
+
+            self._raiseCursorError(DataError, _message)
 
         self._execute_command()
 
@@ -459,7 +466,7 @@ class Cursor(object):
                 _message = u'Converting Parameter %s: %s, %s\n' %\
                     (p.Name, ado_type_name(p.Type), repr(value))
 
-                self._raiseCursorError(DatabaseError, _message)
+                self._raiseCursorError(DataError, _message)
 
         # Replace parmams with ? or NULL
         if parameter_replacements:
