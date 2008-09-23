@@ -63,57 +63,76 @@ class DatabaseOperations(BaseDatabaseOperations):
         The `style` argument is a Style object as returned by either
         color_style() or no_style() in django.core.management.color.
         
-        Nicked from django-pyodbc
+        Originally taken from django-pyodbc project.
         """
-        if tables:
-            # Cannot use TRUNCATE on tables that are referenced by a FOREIGN KEY
-            # So must use the much slower DELETE
-            from django.db import connection
-            cursor = connection.cursor()
-            # Try to minimize the risks of the braindeaded inconsistency in
-            # DBCC CHEKIDENT(table, RESEED, n) behavior.
-            seqs = []
-            for seq in sequences:
-                cursor.execute("SELECT COUNT(*) FROM %s" % self.quote_name(seq["table"]))
-                rowcnt = cursor.fetchone()[0]
-                elem = {}
+        if not tables:
+            return list()
+            
+        qn = self.quote_name
+            
+        # Cannot use TRUNCATE on tables that are referenced by a FOREIGN KEY; use DELETE instead.
+        # (which is slow)
+        from django.db import connection
+        cursor = connection.cursor()
+        # Try to minimize the risks of the braindeaded inconsistency in
+        # DBCC CHEKIDENT(table, RESEED, n) behavior.
+        seqs = []
+        for seq in sequences:
+            cursor.execute("SELECT COUNT(*) FROM %s" % qn(seq["table"]))
+            rowcnt = cursor.fetchone()[0]
+            elem = dict()
 
-                if rowcnt:
-                    elem['start_id'] = 0
-                else:
-                    elem['start_id'] = 1
+            if rowcnt:
+                elem['start_id'] = 0
+            else:
+                elem['start_id'] = 1
 
-                elem.update(seq)
-                seqs.append(elem)
-            cursor.execute("SELECT TABLE_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS")
-            fks = cursor.fetchall()
-            sql_list = ['ALTER TABLE %s NOCHECK CONSTRAINT %s;' % \
-                    (self.quote_name(fk[0]), self.quote_name(fk[1])) for fk in fks]
-            sql_list.extend(['%s %s %s;' % (style.SQL_KEYWORD('DELETE'), style.SQL_KEYWORD('FROM'),
-                             style.SQL_FIELD(self.quote_name(table)) ) for table in tables])
-            # Then reset the counters on each table.
-            sql_list.extend(['%s %s (%s, %s, %s) %s %s;' % (
-                style.SQL_KEYWORD('DBCC'),
-                style.SQL_KEYWORD('CHECKIDENT'),
-                style.SQL_FIELD(self.quote_name(seq["table"])),
-                style.SQL_KEYWORD('RESEED'),
-                style.SQL_FIELD('%d' % seq['start_id']),
-                style.SQL_KEYWORD('WITH'),
-                style.SQL_KEYWORD('NO_INFOMSGS'),
-                ) for seq in seqs])
-            sql_list.extend(['ALTER TABLE %s CHECK CONSTRAINT %s;' % \
-                    (self.quote_name(fk[0]), self.quote_name(fk[1])) for fk in fks])
-            return sql_list
-        else:
-            return []
+            elem.update(seq)
+            seqs.append(elem)
+
+        cursor.execute("SELECT TABLE_NAME, CONSTRAINT_NAME FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS")
+        fks = cursor.fetchall()
+        
+        sql_list = list()
+
+        # Turn off constraints.
+        sql_list.extend(['ALTER TABLE %s NOCHECK CONSTRAINT %s;' % (
+            qn(fk[0]), qn(fk[1])) for fk in fks])
+
+        # Delete data from tables.
+        _delete = style.SQL_KEYWORD('DELETE')
+        _from = style.SQL_KEYWORD('FROM')
+        
+        sql_list.extend(['%s %s %s;' % (_delete, _from, style.SQL_FIELD(qn(t))) for t in tables])
+
+        # Reset the counters on each table.
+        sql_list.extend(['%s %s (%s, %s, %s) %s %s;' % (
+            style.SQL_KEYWORD('DBCC'),
+            style.SQL_KEYWORD('CHECKIDENT'),
+            style.SQL_FIELD(qn(seq["table"])),
+            style.SQL_KEYWORD('RESEED'),
+            style.SQL_FIELD('%d' % seq['start_id']),
+            style.SQL_KEYWORD('WITH'),
+            style.SQL_KEYWORD('NO_INFOMSGS'),
+            ) for seq in seqs])
+
+        # Turn constraints back on.
+        sql_list.extend(['ALTER TABLE %s CHECK CONSTRAINT %s;' % (
+            qn(fk[0]), qn(fk[1])) for fk in fks])
+
+        return sql_list
 
     def tablespace_sql(self, tablespace, inline=False):
         return "ON %s" % self.quote_name(tablespace)
         
     def value_to_db_datetime(self, value):
-        # MS SQL 2005 doesn't support microseconds
         if value is None:
             return None
+            
+        if value.tzinfo is not None:
+            raise ValueError("SQL Server 2005 does not support timezone-aware datetimes.")
+
+        # SQL Server 2005 doesn't support microseconds
         return value.replace(microsecond=0)
     
     def value_to_db_time(self, value):
