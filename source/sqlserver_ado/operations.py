@@ -13,9 +13,11 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         if lookup_type == 'year':
             return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/01/01')" % quoted_field_name
+
         if lookup_type == 'month':
             return "Convert(datetime, Convert(varchar, DATEPART(year, %s)) + '/' + Convert(varchar, DATEPART(month, %s)) + '/01')" %\
                 (quoted_field_name, quoted_field_name)
+
         if lookup_type == 'day':
             return "Convert(datetime, Convert(varchar(12), %s))" % quoted_field_name
 
@@ -100,10 +102,11 @@ class DatabaseOperations(BaseDatabaseOperations):
             qn(fk[0]), qn(fk[1])) for fk in fks])
 
         # Delete data from tables.
-        _delete = style.SQL_KEYWORD('DELETE')
-        _from = style.SQL_KEYWORD('FROM')
-        
-        sql_list.extend(['%s %s %s;' % (_delete, _from, style.SQL_FIELD(qn(t))) for t in tables])
+        sql_list.extend(['%s %s %s;' % (
+            style.SQL_KEYWORD('DELETE'), 
+            style.SQL_KEYWORD('FROM'), 
+            style.SQL_FIELD(qn(t))
+            ) for t in tables])
 
         # Reset the counters on each table.
         sql_list.extend(['%s %s (%s, %s, %s) %s %s;' % (

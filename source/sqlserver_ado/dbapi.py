@@ -100,6 +100,7 @@ class Warning(StandardError): pass
 
 class InterfaceError(Error): pass
 class DatabaseError(Error): pass
+
 class InternalError(DatabaseError): pass
 class OperationalError(DatabaseError): pass
 class ProgrammingError(DatabaseError): pass
@@ -477,11 +478,12 @@ class Cursor(object):
 
     def executemany(self, operation, seq_of_parameters):
         """Execute the given command against all parameter sequences or mappings given in seq_of_parameters."""
-        self.messages = []
+        self.messages = list()
         total_recordcount = 0
 
         for params in seq_of_parameters:
             self.execute(operation, params)
+
             if self.rowcount == -1:
                 total_recordcount = -1
 
@@ -523,7 +525,7 @@ class Cursor(object):
         An Error (or subclass) exception is raised if the previous call to executeXXX()
         did not produce any result set or no call was issued yet.
         """
-        self.messages = []
+        self.messages = list()
         result = self._fetch(1)
         if result: # return record (not list of records)
             return result[0]
@@ -531,14 +533,14 @@ class Cursor(object):
 
     def fetchmany(self, size=None):
         """Fetch the next set of rows of a query result, returning a list of tuples. An empty sequence is returned when no more rows are available."""
-        self.messages = []
+        self.messages = list()
         if size is None:
             size = self.arraysize
         return self._fetch(size)
 
     def fetchall(self):
         """Fetch all remaining rows of a query result, returning them as a sequence of sequences."""
-        self.messages = []
+        self.messages = list()
         return self._fetch()
 
     def nextset(self):
@@ -547,7 +549,7 @@ class Cursor(object):
         If there are no more sets, the method returns None. Otherwise, it returns a true
         value and subsequent calls to the fetch methods will return rows from the next result set.
         """
-        self.messages = []
+        self.messages = list()
         if self.connection is None or self.rs is None:
             self._raiseCursorError(Error, None)
             return None
@@ -629,16 +631,17 @@ def _cvtComDate(comDate):
     return (datetime.datetime.fromordinal(day_count + _ordinal_1899_12_31) +
         datetime.timedelta(milliseconds=fraction_of_day * _milliseconds_per_day))
 
-_variantConversions = MultiMap({
+_variantConversions = MultiMap(
+    {
         adoDateTimeTypes : _cvtComDate,
         adoApproximateNumericTypes: _cvtFloat,
         (adCurrency,): _cvtCurrency,
         (adBoolean,): bool,
         adoLongTypes+adoRowIdTypes : long,
         adoIntegerTypes: int,
-        adoBinaryTypes: buffer, }
-    , lambda x: x)
-
+        adoBinaryTypes: buffer, 
+    }, 
+    lambda x: x)
 
 # Mapping Python data types to ADO type codes
 def _ado_type(data):
@@ -655,4 +658,5 @@ _map_to_adotype = {
     decimal.Decimal: adDecimal,
     datetime.date: adDate,
     datetime.datetime: adDate,
-    datetime.time: adDate, }
+    datetime.time: adDate, 
+}
