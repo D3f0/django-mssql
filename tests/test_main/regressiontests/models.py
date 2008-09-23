@@ -1,6 +1,6 @@
 import datetime
 import decimal
-from django.db import models
+from django.db import models, IntegrityError
 from django.test import TestCase
 
 class Bug19Table(models.Model):
@@ -180,3 +180,18 @@ class Bug35C1Table(Bug35CModel):
     
 class Bug35C2Table(Bug35CModel):
     name = models.CharField(max_length=10)
+
+
+class Bug37Table(models.Model):
+    """Inserting duplicate keys should raise an Integrity Error.
+    >>> Bug37Table(pk=1).save(force_insert=True)
+    >>> try:
+    ...     Bug37Table(pk=1).save(force_insert=True)
+    ... except Exception, e:
+    ...     if isinstance(e, IntegrityError):
+    ...         print "Pass"
+    ...     else:
+    ...         print "Fail with %s" % type(e)
+    Pass
+    """
+    pass

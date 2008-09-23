@@ -291,6 +291,20 @@ class Connection(object):
             print 'Source: %s' % e.Source
             print 'NativeError: %s' % e.NativeError
             print 'SQL State: %s' % e.SQLState
+            
+    def _suggest_error_class(self):
+        """Introspect the current ADO Errors and determine an appropriate error class."""
+        if self.adoConn is not None:
+            for e in self.adoConn.Errors:
+                state = str(e.SQLState)
+                # 23000 are integrity errors
+                # 40002 is a transaction integrity error
+                # per SQL STATE definitions
+                # http://www.contrib.andrew.cmu.edu/~shadow/sql/sql1992.txt
+                if state.startswith('23') or state=='40002':
+                    return IntegrityError
+            
+        return DatabaseError
 
     def __del__(self):
         try:
@@ -392,7 +406,8 @@ class Cursor(object):
             _message = ""
             if hasattr(e, 'args'): _message += str(e.args)+"\n"
             _message += "Command:\n%s\nParameters:\n%s" %  (self.cmd.CommandText, format_parameters(self.cmd.Parameters, True))
-            self._raiseCursorError(DatabaseError, _message)
+            klass = self.connection._suggest_error_class()
+            self._raiseCursorError(klass, _message)
 
 
     def callproc(self, procname, parameters=None):
