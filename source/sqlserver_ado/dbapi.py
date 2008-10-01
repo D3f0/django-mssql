@@ -156,13 +156,13 @@ def format_parameters(parameters, show_value=False):
 
     if show_value:
         desc = [
-            "Name: %s, Dir.: %s, Type: %s, Size: %s, Value: \"%s\"" %\
-            (p.Name, directions[p.Direction], adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size, p.Value)
+            "Name: %s, Dir.: %s, Type: %s, Size: %s, Value: \"%s\", Precision: %s, NumericScale: %s" %\
+            (p.Name, directions[p.Direction], adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size, p.Value, p.Precision, p.NumericScale)
             for p in parameters ]
     else:
         desc = [
-            "Name: %s, Dir.: %s, Type: %s, Size: %s" %\
-            (p.Name, directions[p.Direction], adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size)
+            "Name: %s, Dir.: %s, Type: %s, Size: %s, Precision: %s, NumericScale: %s" %\
+            (p.Name, directions[p.Direction], adTypeNames.get(p.Type, str(p.Type)+' (unknown type)'), p.Size, p.Precision, p.NumericScale)
             for p in parameters ]
 
     return '[' + ', '.join(desc) + ']'
@@ -181,15 +181,16 @@ def _configure_parameter(p, value):
         p.AppendChunk(value)
 
     elif isinstance(value, decimal.Decimal):
-        s = str(value.normalize())
-        p.Value = value
-        p.Precision = len(s)
+        s = str(value.quantize(decimal.Decimal('0')))
 
         point = s.find('.')
         if point == -1:
             p.NumericScale = 0
         else:
             p.NumericScale = len(s)-point
+
+        p.Precision = len(s)
+        p.Value = value
 
     else:
         # For any other type, set the value and let pythoncom do the right thing.

@@ -214,3 +214,25 @@ class Bug37TestCase(TestCase):
             a2.delete()
         except Exception, e:
             self.failUnless(isinstance(e, IntegrityError), 'Expected IntegrityError but got: %s' % type(e))
+
+class Bug38Table(models.Model):
+    """
+    Test adding decimals as strings with various formats.
+    
+    >>> Bug38Table(d=decimal.Decimal('0')).save()
+    >>> Bug38Table(d=decimal.Decimal('0e0')).save()
+    >>> Bug38Table(d=decimal.Decimal('0E0')).save()
+    >>> Bug38Table(d=decimal.Decimal('450')).save()
+    >>> Bug38Table(d=decimal.Decimal('450.0')).save()
+    >>> Bug38Table(d=decimal.Decimal('450.00')).save()
+    >>> Bug38Table(d=decimal.Decimal('450.000')).save()
+    >>> Bug38Table(d=decimal.Decimal('0450')).save()
+    >>> Bug38Table(d=decimal.Decimal('0450.0')).save()
+    >>> Bug38Table(d=decimal.Decimal('0450.00')).save()
+    >>> Bug38Table(d=decimal.Decimal('0450.000')).save()
+    >>> Bug38Table(d=decimal.Decimal('4.5e+2')).save()
+    >>> Bug38Table(d=decimal.Decimal('4.5E+2')).save()
+    >>> len(list(Bug38Table.objects.all()))
+    13
+    """
+    d = models.DecimalField(max_digits=5, decimal_places=2)
