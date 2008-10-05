@@ -208,7 +208,7 @@ class Connection(object):
 
         if self.supportsTransactions:
             self.adoConn.IsolationLevel = defaultIsolationLevel
-            self.adoConn.BeginTrans() #Disables autocommit per DBPAI
+            self.adoConn.BeginTrans() # Disables autocommit per DBPAI
 
     def _raiseConnectionError(self, errorclass, errorvalue):
         eh = self.errorhandler
@@ -467,7 +467,7 @@ class Cursor(object):
 
                 self._raiseCursorError(DataError, _message)
 
-        # Replace parmams with ? or NULL
+        # Replace params with ? or NULL
         if parameter_replacements:
             operation = operation % tuple(parameter_replacements)
 
