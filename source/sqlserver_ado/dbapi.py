@@ -36,14 +36,8 @@ try:
 except ImportError:
     from django.utils import _decimal as decimal
 
-import win32com.client
-
-# AdamV todo - sort out decimal/currency/numeric support in SQL Server
-# The next two code lines request Decimal python types for
-# ADO currency values. This does not affect SQL decimal/numeric
-# types, which come back as strings.
 import pythoncom
-pythoncom.__future_currency__ = True
+import win32com.client
 
 from ado_consts import *
 
@@ -181,16 +175,19 @@ def _configure_parameter(p, value):
         p.AppendChunk(value)
 
     elif isinstance(value, decimal.Decimal):
-        s = str(value.quantize(decimal.Decimal('0')))
-
-        point = s.find('.')
-        if point == -1:
-            p.NumericScale = 0
-        else:
-            p.NumericScale = len(s)-point
-
-        p.Precision = len(s)
         p.Value = value
+        exponent = value.as_tuple()[2]
+        digit_count = len(value.as_tuple()[1])
+        
+        if exponent == 0:
+            p.NumericScale = 0
+            p.Precision =  digit_count
+        elif exponent < 0:
+            p.NumericScale = -exponent
+            p.Precision =  digit_count
+        elif exponent > 0:
+            p.NumericScale = 0
+            p.Precision = digit_count + exponent
 
     else:
         # For any other type, set the value and let pythoncom do the right thing.
@@ -607,10 +604,8 @@ def _convert_to_python(variant, adType):
         return None
     return _variantConversions[adType](variant)
 
-def _cvtCurrency((hi, lo), decimal_places=2):
-    if lo < 0:
-        lo += (2L ** 32)
-    return decimal.Decimal((long(hi) << 32) + lo)/decimal.Decimal(1000)
+def _cvtDecimal(variant):
+    return _convertNumberWithCulture(variant, decimal.Decimal)
 
 def _cvtFloat(variant):
     return _convertNumberWithCulture(variant, float)
@@ -635,8 +630,8 @@ def _cvtComDate(comDate):
 _variantConversions = MultiMap(
     {
         adoDateTimeTypes : _cvtComDate,
+        adoExactNumericTypes: _cvtDecimal,
         adoApproximateNumericTypes: _cvtFloat,
-        (adCurrency,): _cvtCurrency,
         (adBoolean,): bool,
         adoLongTypes+adoRowIdTypes : long,
         adoIntegerTypes: int,
