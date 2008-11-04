@@ -2,6 +2,7 @@ import datetime
 import decimal
 from django.db import models, IntegrityError
 from django.test import TestCase
+from django.core.paginator import Paginator
 
 class Bug19Table(models.Model):
     """ A simple model for testing string comparisons.
@@ -217,3 +218,30 @@ class Bug37TestCase(TestCase):
 
 class Bug38Table(models.Model):
     d = models.DecimalField(max_digits=5, decimal_places=2)
+
+
+class Bug41Table(models.Model):
+    """
+    Test that pagination works with extra/select columns.
+
+    >>> Bug41Table(a=100).save()
+    >>> Bug41Table(a=101).save()
+    >>> Bug41Table(a=102).save()
+    >>> len(list(Bug41Table.objects.all()))
+    3
+
+    >>> objs = Bug41Table.objects.extra(select={'alias_for_a':'[regressiontests_bug41table].[a]'}).order_by('alias_for_a')
+    >>> all_objs = Paginator(objs, 1)
+    >>> all_objs.count
+    3
+    >>> all_objs.num_pages
+    3
+    >>> page1 = all_objs.page(1)
+    >>> page1.object_list[0].alias_for_a
+    100
+    >>> page2 = all_objs.page(2)
+    >>> page2.object_list[0].alias_for_a
+    101
+    """
+
+    a = models.IntegerField()
