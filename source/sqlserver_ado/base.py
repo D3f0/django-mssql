@@ -50,8 +50,17 @@ def make_connection_string(settings):
         auth_string = "UID=%s;PWD=%s" % (settings.DATABASE_USER, settings.DATABASE_PASSWORD)
     else:
         auth_string = "Integrated Security=SSPI"
+    
+    extra = ''
+    
+    if hasattr(settings, 'DATABASE_USE_MARS') and settings.DATABASE_USE_MARS:
+        extra += ";MultipleActiveResultSets=true"
+    
+    if hasattr(settings, 'DATABASE_EXTRA'):
+        extra += ";"+settings.DATABASE_EXTRA
 
-    return "PROVIDER=SQLOLEDB;DATA SOURCE=%s;Initial Catalog=%s;%s" % (datasource, settings.DATABASE_NAME, auth_string)
+    return "PROVIDER=SQLOLEDB;DATA SOURCE=%s;Initial Catalog=%s;%s%s" %\
+        (datasource, settings.DATABASE_NAME, auth_string, extra)
 
 class DatabaseWrapper(BaseDatabaseWrapper):
     operators = {
