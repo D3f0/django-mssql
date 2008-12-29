@@ -31,7 +31,9 @@ def query_class(QueryClass):
             super(SqlServerQuery, self).__init__(*args, **kwargs)
 
             # If we are an insert query, wrap "as_sql"
-            if self.__class__.__name__ == "InsertQuery":
+            # Import here to avoid circular dependency
+            from django.db.models.sql.subqueries import InsertQuery
+            if isinstance(self, InsertQuery):
                 self._parent_as_sql = self.as_sql
                 self.as_sql = self._insert_as_sql
 
@@ -47,7 +49,7 @@ def query_class(QueryClass):
             
             # Get out of the way if we're not a select query or there's no limiting involved.
             check_limits = with_limits and (self.low_mark or self.high_mark is not None)
-            if self.__class__.__name__ != 'SqlServerQuery' or not check_limits:
+            if not isinstance(self, SqlServerQuery) or not check_limits:
                 return super(SqlServerQuery, self).as_sql(with_limits, with_col_aliases)
 
             raw_sql, fields = super(SqlServerQuery, self).as_sql(False, with_col_aliases)
@@ -80,7 +82,7 @@ def query_class(QueryClass):
                  % (outer_fields, order, inner_select, where_row_num)
             
             return sql, fields
-
+ 
         def _alias_columns(self, sql):
             """Return tuple of SELECT and FROM clauses, aliasing duplicate column names."""
             qn = self.connection.ops.quote_name
@@ -91,7 +93,6 @@ def query_class(QueryClass):
         
             outer = list()
             inner = list()
-
             names_seen = list()
             
             select_list, from_clause = _break(sql, ' FROM [')
