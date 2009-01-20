@@ -2,6 +2,25 @@ import decimal
 from django.db import models
 from django.test import TestCase
 
+class Bug46Table(models.Model):
+    s = models.CharField(max_length=10)
+
+class Bug46TestCase(TestCase):
+    def testAllDistinctLimit(self):
+        Bug46Table(s='abc').save()
+        Bug46Table(s='abc').save()
+        Bug46Table(s='abc').save()
+        Bug46Table(s='def').save()
+        Bug46Table(s='fgh').save()
+        Bug46Table(s='fgh').save()
+        Bug46Table(s='fgh').save()
+        Bug46Table(s='fgh').save()
+        Bug46Table(s='xyz').save()
+        
+        stuff = list(Bug46Table.objects.all().distinct()[:2])
+        print len(stuff)
+        
+
 class Bug38Table(models.Model):
     d = models.DecimalField(max_digits=5, decimal_places=2)
 
