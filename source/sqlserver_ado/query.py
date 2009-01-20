@@ -56,7 +56,11 @@ def query_class(QueryClass):
             
             # Check for high mark only and replace with "TOP"
             if self.high_mark is not None and not self.low_mark:
-                sql = re.sub(r'(?i)^SELECT', 'SELECT TOP %s' % self.high_mark, raw_sql, 1)
+                _select = 'SELECT'
+                if self.distinct:
+                    _select += ' DISTINCT'
+                
+                sql = re.sub(r'(?i)^%s' % _select, '%s TOP %s' % (_select, self.high_mark), raw_sql, 1)
                 return sql, fields
                 
             # Else we have limits; rewrite the query using ROW_NUMBER()
