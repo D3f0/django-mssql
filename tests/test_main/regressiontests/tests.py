@@ -18,7 +18,7 @@ class Bug46TestCase(TestCase):
         Bug46Table(s='xyz').save()
         
         stuff = list(Bug46Table.objects.all().distinct()[:2])
-        print len(stuff)
+        self.assertEquals(len(stuff), 2)
         
 
 class Bug38Table(models.Model):
