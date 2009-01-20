@@ -35,6 +35,10 @@ class Products(models.Model):
     3
     >>> len(list(p.all()[5:]))
     2
+    >>> p.all()[0:0]
+    []
+    >>> p.all()[0:0][:10]
+    []
     >>> pn = p.order_by('name')
     >>> list(pn)
     [A, B, C, D, E, F, G]

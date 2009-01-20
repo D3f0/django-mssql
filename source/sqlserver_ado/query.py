@@ -55,7 +55,7 @@ def query_class(QueryClass):
             raw_sql, fields = super(SqlServerQuery, self).as_sql(False, with_col_aliases)
             
             # Check for high mark only and replace with "TOP"
-            if self.high_mark and not self.low_mark:
+            if self.high_mark is not None and not self.low_mark:
                 sql = re.sub(r'(?i)^SELECT', 'SELECT TOP %s' % self.high_mark, raw_sql, 1)
                 return sql, fields
                 
