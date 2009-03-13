@@ -147,8 +147,6 @@ def unpickle_query_class(QueryClass):
     Utility function, called by Python's unpickling machinery, that handles
     unpickling of SQL Server Query subclasses.
     """
-    import cx_Oracle
-
     klass = query_class(QueryClass)
     return klass.__new__(klass)
 unpickle_query_class.__safe_for_unpickling__ = True
