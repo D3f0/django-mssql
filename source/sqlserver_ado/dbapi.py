@@ -184,7 +184,9 @@ def _configure_parameter(p, value):
             p.Precision =  digit_count
         elif exponent < 0:
             p.NumericScale = -exponent
-            p.Precision =  digit_count
+            p.Precision = digit_count
+            if p.Precision < p.NumericScale:
+                p.Precision = p.NumericScale            
         elif exponent > 0:
             p.NumericScale = 0
             p.Precision = digit_count + exponent

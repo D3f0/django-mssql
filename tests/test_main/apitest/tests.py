@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 # Base is used to get connection string using Django settings
 from sqlserver_ado import base
 # Internal dbapi module
@@ -119,3 +121,19 @@ end
         
     def test_ExceptionsAsConnectionAttributes(self):
         pass
+        
+    def test_select_decimal_zero(self):
+        con = self._connect()
+        try:
+            expected = (
+                Decimal('0.00'),
+                Decimal('0.0'),
+                Decimal('-0.00'))
+            
+            cur = con.cursor()
+            cur.execute("SELECT %s as A, %s as B, %s as C", expected)
+                
+            result = cur.fetchall()
+            self.assertEqual(result[0], expected)
+        finally:
+            con.close()
