@@ -27,6 +27,18 @@ def _remove_order_limit_offset(sql):
 def query_class(QueryClass):
     """Return a custom Query subclass for SQL Server."""
     class SqlServerQuery(QueryClass):
+        def __reduce__(self):
+            """
+            Enable pickling for this class (normal pickling handling doesn't
+            work as Python can only pickle module-level classes by default).
+            """
+            if hasattr(QueryClass, '__getstate__'):
+                assert hasattr(QueryClass, '__setstate__')
+                data = self.__getstate__()
+            else:
+                data = self.__dict__
+            return (unpickle_query_class, (QueryClass,), data)
+
         def __init__(self, *args, **kwargs):
             super(SqlServerQuery, self).__init__(*args, **kwargs)
 
@@ -129,3 +141,14 @@ def query_class(QueryClass):
             return sql, params
 
     return SqlServerQuery
+
+def unpickle_query_class(QueryClass):
+    """
+    Utility function, called by Python's unpickling machinery, that handles
+    unpickling of SQL Server Query subclasses.
+    """
+    import cx_Oracle
+
+    klass = query_class(QueryClass)
+    return klass.__new__(klass)
+unpickle_query_class.__safe_for_unpickling__ = True
