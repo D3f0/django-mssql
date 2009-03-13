@@ -32,6 +32,18 @@ def connection_string_from_settings():
     return make_connection_string(settings)
 
 def make_connection_string(settings):
+    class wrap(object):
+        def __init__(self, mapping):
+            self._dict = mapping
+            
+        def __getattr__(self, name):
+            if hasattr(self._dict, "get"):
+                return self._dict.get(name)
+            else:
+                return getattr(self._dict, name)
+            
+    settings = wrap(settings) 
+    
     if settings.DATABASE_NAME == '':
         raise ImproperlyConfigured("You need to specify a DATABASE_NAME in your Django settings file.")
 
@@ -50,17 +62,23 @@ def make_connection_string(settings):
         auth_string = "UID=%s;PWD=%s" % (settings.DATABASE_USER, settings.DATABASE_PASSWORD)
     else:
         auth_string = "Integrated Security=SSPI"
-    
-    extra = ''
-    
-    if hasattr(settings, 'DATABASE_USE_MARS') and settings.DATABASE_USE_MARS:
-        extra += ";MultipleActiveResultSets=true"
-    
-    if hasattr(settings, 'DATABASE_EXTRA'):
-        extra += ";"+settings.DATABASE_EXTRA
 
-    return "PROVIDER=SQLOLEDB;DATA SOURCE=%s;Initial Catalog=%s;%s%s" %\
-        (datasource, settings.DATABASE_NAME, auth_string, extra)
+    parts = [
+        "PROVIDER=SQLOLEDB", 
+        "DATA SOURCE="+datasource,
+        "Initial Catalog="+settings.DATABASE_NAME,
+        auth_string
+    ]
+    
+    options = settings.DATABASE_OPTIONS
+    if options:
+        if 'use_mars' in options and options['use_mars']:
+            parts.append("MultipleActiveResultSets=true")
+            
+        if 'extra_params' in options:
+            parts.append(options['extra_params'])
+        
+    return ";".join(parts)
 
 class DatabaseWrapper(BaseDatabaseWrapper):
     operators = {
@@ -78,22 +96,22 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         "iendswith": "LIKE %s ESCAPE '\\'",
     }
 
-    def __init__(self, **kwargs):
-        super(DatabaseWrapper, self).__init__(**kwargs)
+    def __init__(self, *args, **kwargs):
+        super(DatabaseWrapper, self).__init__(*args, **kwargs)
         
         self.features = DatabaseFeatures()
         self.ops = DatabaseOperations()
         
-        self.client = BaseDatabaseClient()
+        self.client = BaseDatabaseClient(self)
         self.creation = DatabaseCreation(self) 
         self.introspection = DatabaseIntrospection(self)
         self.validation = BaseDatabaseValidation()
         
-    def _cursor(self, settings):
+    def _cursor(self):
         # Connection strings courtesy of:
         # http://www.connectionstrings.com/?carrier=sqlserver
 
         if self.connection is None:
-            self.connection = Database.connect(make_connection_string(settings))
+            self.connection = Database.connect(make_connection_string(self.settings_dict))
 
         return Database.Cursor(self.connection)
