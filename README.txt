@@ -1,4 +1,4 @@
-This project contains a Django database backend for Microsoft SQL Server 2005.
+This project contains a Django database backend for Microsoft SQL Server 2005/2008.
 
 == TO INSTALL ==
 
