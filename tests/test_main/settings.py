@@ -79,4 +79,5 @@ INSTALLED_APPS = (
     'regressiontests',
 	'slicing',
 	'nulls',
+	'aggregates',
 )

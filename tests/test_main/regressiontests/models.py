@@ -171,7 +171,7 @@ class Bug35CModel(models.Model):
     """Ensure that multiple Postive Integer columns across tables don't 
     create duplicate constraint names when using inheritence.
     
-    Test test for Bug35 is just the creation of the tables; there are no
+    The test for Bug35 is just the creation of the tables; there are no
     other explicit tests.
     """
     age = models.PositiveIntegerField()
