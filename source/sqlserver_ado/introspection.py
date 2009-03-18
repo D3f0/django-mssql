@@ -8,7 +8,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         return [row[0] for row in cursor.fetchall()]
 
     def _is_auto_field(self, cursor, table_name, column_name):
-        """Checks whether column is an identity column, using COLUMNPROPERTY.
+        """Check if a column is an identity columns.
 
         See: http://msdn2.microsoft.com/en-us/library/ms174968.aspx
         """
@@ -19,7 +19,7 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         return cursor.fetchone()[0]
 
     def get_table_description(self, cursor, table_name, identity_check=True):
-        """Returns a description of the table, with DB-API cursor.description interface.
+        """Return a description of the table, with DB-API cursor.description interface.
 
         The 'auto_check' parameter has been added to the function argspec.
         If set to True, the function will check each of the table's fields for the
@@ -74,6 +74,7 @@ join information_schema.key_column_usage pk_cols
 	on pk.constraint_name = pk_cols.constraint_name
 where
 	fk.table_name = %s"""
+
         cursor.execute(sql,[table_name])
         relations = cursor.fetchall()
         relation_map = dict()
