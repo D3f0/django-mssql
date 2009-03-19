@@ -3,12 +3,12 @@ import ado_consts
 
 class DatabaseIntrospection(BaseDatabaseIntrospection):
     def get_table_list(self, cursor):
-        "Returns a list of table and view names in the current database."
+        "Return a list of table and view names in the current database."
         cursor.execute("SELECT TABLE_NAME FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_TYPE = 'BASE TABLE' UNION SELECT TABLE_NAME FROM INFORMATION_SCHEMA.VIEWS")
         return [row[0] for row in cursor.fetchall()]
 
     def _is_auto_field(self, cursor, table_name, column_name):
-        """Check if a column is an identity columns.
+        """Check if a column is an identity column.
 
         See: http://msdn2.microsoft.com/en-us/library/ms174968.aspx
         """
@@ -40,8 +40,8 @@ class DatabaseIntrospection(BaseDatabaseIntrospection):
         return items
 
     def _name_to_index(self, cursor, table_name):
-        """
-        Returns a dictionary of {field_name: field_index} for the given table.
+        """Return a dictionary of {field_name: field_index} for the given table.
+        
         Indexes are 0-based.
         """
         return dict([(d[0], i) for i, d in enumerate(self.get_table_description(cursor, table_name, False))])
@@ -138,6 +138,7 @@ where
         ado_consts.adSingle: 'FloatField',
         ado_consts.adInteger: 'IntegerField',
         ado_consts.adBigInt: 'IntegerField',
+        #ado_consts.adBigInt: 'BigIntegerField',
         ado_consts.adSmallInt: 'IntegerField',
         ado_consts.adTinyInt: 'IntegerField',
         ado_consts.adVarChar: 'CharField',
