@@ -1,6 +1,5 @@
 """Microsoft SQL Server database backend for Django."""
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseValidation, BaseDatabaseClient
-
 from django.core.exceptions import ImproperlyConfigured
 
 import dbapi as Database

@@ -334,6 +334,14 @@ class Cursor(object):
 
     def __iter__(self):
         return iter(self.fetchone, None)
+        
+    def __enter__(self):
+        "Allow database cursors to be used with context managers."
+        return self
+        
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        "Allow database cursors to be used with context managers."
+        self.close()
 
     def _raiseCursorError(self, errorclass, errorvalue):
         eh = self.errorhandler
