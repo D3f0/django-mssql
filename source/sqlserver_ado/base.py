@@ -50,7 +50,7 @@ def make_connection_string(settings):
     # Connection strings courtesy of:
     # http://www.connectionstrings.com/?carrier=sqlserver
 
-   datasource = settings.DATABASE_HOST
+    datasource = settings.DATABASE_HOST
     if not datasource:
         datasource = "127.0.0.1"
 
