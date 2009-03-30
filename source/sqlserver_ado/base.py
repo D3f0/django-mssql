@@ -47,7 +47,10 @@ def make_connection_string(settings):
     if settings.DATABASE_NAME == '':
         raise ImproperlyConfigured("You need to specify a DATABASE_NAME in your Django settings file.")
 
-    datasource = settings.DATABASE_HOST
+    # Connection strings courtesy of:
+    # http://www.connectionstrings.com/?carrier=sqlserver
+
+   datasource = settings.DATABASE_HOST
     if not datasource:
         datasource = "127.0.0.1"
 
@@ -108,9 +111,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.validation = BaseDatabaseValidation()
         
     def _cursor(self):
-        # Connection strings courtesy of:
-        # http://www.connectionstrings.com/?carrier=sqlserver
-
         if self.connection is None:
             self.connection = Database.connect(make_connection_string(self.settings_dict))
             connection_created.send(sender=self.__class__)
