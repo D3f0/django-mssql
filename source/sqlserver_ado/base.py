@@ -1,5 +1,6 @@
 """Microsoft SQL Server database backend for Django."""
 from django.db.backends import BaseDatabaseWrapper, BaseDatabaseFeatures, BaseDatabaseValidation, BaseDatabaseClient
+from django.db.backends.signals import connection_created
 from django.core.exceptions import ImproperlyConfigured
 
 import dbapi as Database
@@ -112,5 +113,6 @@ class DatabaseWrapper(BaseDatabaseWrapper):
 
         if self.connection is None:
             self.connection = Database.connect(make_connection_string(self.settings_dict))
+            connection_created.send(sender=self.__class__)
 
         return Database.Cursor(self.connection)
