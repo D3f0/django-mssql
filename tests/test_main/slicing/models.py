@@ -96,13 +96,13 @@ class PagingTestCase(TestCase):
             self.try_page(i, q)
 
 
-class LimitDistinctTable(models.Model):
+class DistinctTable(models.Model):
     s = models.CharField(max_length=10)
 
 
-class LimitDistinctTestCase(TestCase):
+class DistinctTestCase(TestCase):
     def testLimitDistinct(self):
-        T = LimitDistinctTable
+        T = DistinctTable
         T(s='abc').save()
         T(s='abc').save()
         T(s='abc').save()
@@ -129,3 +129,38 @@ class LimitDistinctTestCase(TestCase):
 
         stuff = list(baseQ[2:4])
         self.assertEquals(stuff, [u'fgh', u'ijk'])
+
+    def testUnusedDistinct(self):
+        T = DistinctTable
+        T(s='abc').save()
+        T(s='abc').save()
+        T(s='abc').save()
+        T(s='def').save()
+        T(s='def').save()
+        T(s='fgh').save()
+        T(s='fgh').save()
+        T(s='fgh').save()
+        T(s='fgh').save()
+        T(s='ijk').save()
+        T(s='ijk').save()
+        T(s='xyz').save()
+        
+        baseQ = T.objects.distinct()
+        
+        stuff = list(baseQ)
+        self.assertEquals(len(stuff), 12)
+        
+        stuff = list(baseQ[:2])
+        self.assertEquals(
+            [o.s for o in stuff],
+            [u'abc', u'abc'])
+
+        stuff = list(baseQ[3:])
+        self.assertEquals(
+            [o.s for o in stuff], 
+            [u'def', u'def', u'fgh', u'fgh', u'fgh', u'fgh', u'ijk', u'ijk', u'xyz'])
+
+        stuff = list(baseQ[2:4])
+        self.assertEquals(
+            [o.s for o in stuff], 
+            [u'abc', u'def'])
