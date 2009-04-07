@@ -14,6 +14,7 @@ class FirstTable(models.Model):
     def __repr__(self):
         return '<FirstTable %s: %s, %s>' % (self.pk, self.b, self.c)
 
+
 class SecondTable(models.Model):
     a = models.ForeignKey(FirstTable)
     b = models.CharField(max_length=100)
@@ -21,7 +22,7 @@ class SecondTable(models.Model):
     def __repr__(self):
         return '<FirstTable %s: %s, %s>' % (self.pk, self.a_id, self.b)
 
-# Test slicing
+
 class Products(models.Model):
     """
     >>> names=['D', 'F', 'B', 'A', 'C', 'E', 'G']
@@ -58,6 +59,7 @@ class Products(models.Model):
         
     def __unicode__(self):
         return "<Product %u: %u>" % (self.productid, self.name)
+
         
 class PagingTestCase(TestCase):
     """The Paginator uses slicing internally."""
@@ -92,3 +94,38 @@ class PagingTestCase(TestCase):
         
         for i in (1,2,3):
             self.try_page(i, q)
+
+
+class LimitDistinctTable(models.Model):
+    s = models.CharField(max_length=10)
+
+
+class LimitDistinctTestCase(TestCase):
+    def testLimitDistinct(self):
+        T = LimitDistinctTable
+        T(s='abc').save()
+        T(s='abc').save()
+        T(s='abc').save()
+        T(s='def').save()
+        T(s='def').save()
+        T(s='fgh').save()
+        T(s='fgh').save()
+        T(s='fgh').save()
+        T(s='fgh').save()
+        T(s='ijk').save()
+        T(s='ijk').save()
+        T(s='xyz').save()
+        
+        baseQ = T.objects.values_list('s', flat=True).distinct()
+        
+        stuff = list(baseQ)
+        self.assertEquals(len(stuff), 5)
+        
+        stuff = list(baseQ[:2])
+        self.assertEquals(stuff, [u'abc', u'def'])
+
+        stuff = list(baseQ[3:])
+        self.assertEquals(stuff, [u'ijk', u'xyz'])
+
+        stuff = list(baseQ[2:4])
+        self.assertEquals(stuff, [u'fgh', u'ijk'])

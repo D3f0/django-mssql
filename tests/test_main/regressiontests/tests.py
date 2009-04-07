@@ -3,47 +3,6 @@ from django.db import models
 from django.test import TestCase
 
 
-class Bug57Table(models.Model):
-    s = models.CharField(max_length=10)
-
-class Bug57TestCase(TestCase):
-    def testAllDistinctLimit(self):
-        Bug57Table(s='abc').save()
-        Bug57Table(s='abc').save()
-        Bug57Table(s='abc').save()
-        Bug57Table(s='def').save()
-        Bug57Table(s='def').save()
-        Bug57Table(s='fgh').save()
-        Bug57Table(s='fgh').save()
-        Bug57Table(s='fgh').save()
-        Bug57Table(s='fgh').save()
-        Bug57Table(s='ijk').save()
-        Bug57Table(s='ijk').save()
-        Bug57Table(s='xyz').save()
-        
-        stuff = list(Bug57Table.objects.all().distinct()[2:4])
-        self.assertEquals(len(stuff), 2)
-
-
-class Bug46Table(models.Model):
-    s = models.CharField(max_length=10)
-
-class Bug46TestCase(TestCase):
-    def testAllDistinctLimit(self):
-        Bug46Table(s='abc').save()
-        Bug46Table(s='abc').save()
-        Bug46Table(s='abc').save()
-        Bug46Table(s='def').save()
-        Bug46Table(s='fgh').save()
-        Bug46Table(s='fgh').save()
-        Bug46Table(s='fgh').save()
-        Bug46Table(s='fgh').save()
-        Bug46Table(s='xyz').save()
-        
-        stuff = list(Bug46Table.objects.all().distinct()[:2])
-        self.assertEquals(len(stuff), 2)
-        
-
 class Bug38Table(models.Model):
     d = models.DecimalField(max_digits=5, decimal_places=2)
 
