@@ -41,7 +41,7 @@ class DatabaseCreation(BaseDatabaseCreation):
 
     def _reenable_transactions(self, verbosity=1):
         """Reset transaction support to state prior to _disable_transactions() call"""
-        if hasattr(self, _supports_transactions):
+        if hasattr(self, '_supports_transactions'):
             if verbosity >= 1:
                 print "Re-enabling Transactions"
             self.connection.connection.supportsTransactions = self._supports_transactions
@@ -87,7 +87,6 @@ class DatabaseCreation(BaseDatabaseCreation):
                 sys.exit(1)
 
         return test_database_name
-
         
 
     def _destroy_test_db(self, test_database_name, verbosity=1):
@@ -110,15 +109,13 @@ class DatabaseCreation(BaseDatabaseCreation):
             print "Skipping Test DB destruction"    
         
     def _test_database_create(self, settings):
-        name = True
-
         if hasattr(settings, 'TEST_DATABASE_CREATE'):
-            name = settings.TEST_DATABASE_CREATE
-        return name
+            return settings.TEST_DATABASE_CREATE
+        else:
+            return True
 
     def _test_database_name(self, settings):
-        name = TEST_DATABASE_PREFIX + settings.DATABASE_NAME
-
-        if hasattr(settings, 'TEST_DATABASE_NAME'):
-            name = settings.TEST_DATABASE_NAME
-        return name
+        if hasattr(settings, 'TEST_DATABASE_NAME') and settings.TEST_DATABASE_NAME:
+            return settings.TEST_DATABASE_NAME
+        else:
+            return TEST_DATABASE_PREFIX + settings.DATABASE_NAME
