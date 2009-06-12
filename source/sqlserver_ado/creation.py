@@ -101,6 +101,7 @@ class DatabaseCreation(BaseDatabaseCreation):
             # connected to it.
             cursor = self.connection.cursor()
             self.set_autocommit()
+            import time
             time.sleep(1) # To avoid "database is being accessed by other users" errors.
             self._disable_transactions()
             cursor.execute("DROP DATABASE %s" % self.connection.ops.quote_name(test_database_name))

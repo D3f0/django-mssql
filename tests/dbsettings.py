@@ -8,9 +8,6 @@ DATABASE_HOST =  os.environ['COMPUTERNAME'] + '\\' + os.environ.get('SQLINSTANCE
 DATABASE_PORT = ''
 DATABASE_NAME = r'django_test_backend'
 
-# Don't create a test database; use use the name above.
-TEST_DATABASE_CREATE = False
-
 # Use integrated auth.
 DATABASE_USER = ''
 DATABASE_PASSWORD = ''
