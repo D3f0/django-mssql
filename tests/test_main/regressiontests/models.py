@@ -245,3 +245,34 @@ class Bug41Table(models.Model):
     """
 
     a = models.IntegerField()
+    
+class Bug62Table(models.Model):
+    email = models.CharField(max_length=255, blank=True)
+
+class Bug62TestCase(TestCase):
+    def testExclude(self):
+        Bug62Table(email='').save()
+        Bug62Table(email='abc').save()
+        Bug62Table(email='').save()
+        Bug62Table(email='def').save()
+        
+        q = list(Bug62Table.objects.exclude(email='abc'))
+        self.assertEqual(len(q), 3)
+
+    def testExcludeEmpty(self):
+        Bug62Table(email='').save()
+        Bug62Table(email='abc').save()
+        Bug62Table(email='').save()
+        Bug62Table(email='def').save()
+
+        q = list(Bug62Table.objects.exclude(email=''))
+        self.assertEqual(len(q), 2)
+
+    def testExcludeEmptyUnicode(self):
+        Bug62Table(email='').save()
+        Bug62Table(email='abc').save()
+        Bug62Table(email='').save()
+        Bug62Table(email='def').save()
+        
+        q = list(Bug62Table.objects.exclude(email=u''))
+        self.assertEqual(len(q), 2)

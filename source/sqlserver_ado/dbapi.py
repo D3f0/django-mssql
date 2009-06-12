@@ -464,8 +464,12 @@ class Cursor(object):
             if value is None:
                 parameter_replacements.append('NULL')
                 continue
+                
+            if isinstance(value, basestring) and value == "":
+                parameter_replacements.append("''")
+                continue
 
-            # Otherwise, process the non-NULL parameter.
+            # Otherwise, process the non-NULL, non-empty string parameter.
             parameter_replacements.append('?')
             try:
                 p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
