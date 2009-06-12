@@ -99,7 +99,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         # Turn off constraints.
         sql_list.extend(['ALTER TABLE %s NOCHECK CONSTRAINT %s;' % (
-            qn(fk[0]), qn(fk[1])) for fk in fks if fk[0] != None and fk[1] != None])
+            qn(fk[0]), qn(fk[1])) for fk in fks if fk[0] is not None and fk[1] is not None])
 
         # Delete data from tables.
         sql_list.extend(['%s %s %s;' % (
@@ -121,7 +121,7 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         # Turn constraints back on.
         sql_list.extend(['ALTER TABLE %s CHECK CONSTRAINT %s;' % (
-            qn(fk[0]), qn(fk[1])) for fk in fks if fk[0] != None and fk[1] != None])
+            qn(fk[0]), qn(fk[1])) for fk in fks if fk[0] is not None and fk[1] is not None])
 
         return sql_list
 
