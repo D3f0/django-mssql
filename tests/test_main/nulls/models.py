@@ -39,9 +39,6 @@ class TableNullDateTime(BaseModel):
 class TableNullDate(BaseModel):
     val = models.DateField(null=True)
 
-class TableNullBoolean(BaseModel):
-    val = models.BooleanField(null=True)
-
 class TableNullNullBoolean(BaseModel):
     val = models.NullBooleanField(null=True)
 
@@ -76,9 +73,6 @@ class NullTests(TestCase):
      
     def testBoolean(self):
         self._run(TableNullNullBoolean, (None, True, False))
-
-    def testNullBoolean(self):
-        self._run(TableNullBoolean, (None, True, False))
 
     def testFloat(self):
         self._run(TableNullFloat, (None, 34.3))
