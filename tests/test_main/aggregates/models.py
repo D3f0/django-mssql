@@ -45,17 +45,17 @@ class Bet(models.Model):
     >>> GamerCard(player=p1).save()
     >>> GamerCard(player=p2).save()
     
-    >>> Bet(player=p1, amount="100.00").save()
-    >>> Bet(player=p1, amount="200.00").save()
-    >>> Bet(player=p1, amount="300.00").save()
-    >>> Bet(player=p1, amount="400.00").save()
-    >>> Bet(player=p1, amount="500.00").save()
+    >>> Bet(player=p1, amount="100.00", won="50.00").save()
+    >>> Bet(player=p1, amount="200.00", won="50.00").save()
+    >>> Bet(player=p1, amount="300.00", won="50.00").save()
+    >>> Bet(player=p1, amount="400.00", won="50.00").save()
+    >>> Bet(player=p1, amount="500.00", won="50.00").save()
     
-    >>> Bet(player=p2, amount="1000.00").save()
-    >>> Bet(player=p2, amount="2000.00").save()
-    >>> Bet(player=p2, amount="3000.00").save()
-    >>> Bet(player=p2, amount="4000.00").save()
-    >>> Bet(player=p2, amount="5000.00").save()
+    >>> Bet(player=p2, amount="1000.00", won="50.00").save()
+    >>> Bet(player=p2, amount="2000.00", won="50.00").save()
+    >>> Bet(player=p2, amount="3000.00", won="50.00").save()
+    >>> Bet(player=p2, amount="4000.00", won="50.00").save()
+    >>> Bet(player=p2, amount="5000.00", won="50.00").save()
     
     >>> p = Player.objects.annotate(Count('bet'), avg_bet=Avg('bet__amount')).order_by('name')
     
@@ -73,7 +73,16 @@ class Bet(models.Model):
     >>> p[1].avg_bet
     3000
     
-    >>> p = Player.objects.annotate(bets=Count('bet'), avg_bet=Avg('bet__amount')).values()
+    >>> g = GamerCard.objects.annotate(bets=Sum('player__bet__amount'), winnings=Sum('player__bet__won')).order_by('name')
+    >>> g = g.extra(select={'net_result': 'winnings-bets'})
+    >>> g = list(g)[0]
+    >>> g.bets
+    1500
+    >>> g.winnings
+    250
+    >>> g.net_result
+    -1250
     """
     player = models.ForeignKey(Player)
     amount = models.DecimalField(max_digits=10, decimal_places=2)
+    won = models.DecimalField(max_digits=10, decimal_places=2)
