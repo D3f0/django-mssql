@@ -3,7 +3,7 @@ import decimal
 from django.db import models, IntegrityError
 from django.test import TestCase
 from django.core.paginator import Paginator
-from sqlserver_ado.fields import BigAutoField, BigIntegerField
+from sqlserver_ado.fields import BigAutoField, BigIntegerField, BigForeignKey
 
 class Bug19Table(models.Model):
     """ A simple model for testing string comparisons.
@@ -291,3 +291,19 @@ class Bug63Table(models.Model):
     """
     id = BigAutoField(primary_key=True)
     number = BigIntegerField()
+
+class Bug64Table(models.Model):
+    """
+    Test that a BigForeignKey works as intended.
+    
+    >>> a = Bug63Table(number=2147483648L)
+    >>> a.save()
+    >>> b = Bug64Table(key=a)
+    >>> b.save()
+    >>> a == b.key
+    True
+    >>> b.key.number == 2147483648L
+    True
+    """
+    
+    key = BigForeignKey(Bug63Table)

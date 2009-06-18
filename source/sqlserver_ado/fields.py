@@ -1,10 +1,10 @@
 """This module provides SQL Server specific fields for Django models."""
-from django.db.models import IntegerField, AutoField
+from django.db.models import AutoField, ForeignKey, IntegerField
 
-class BigIntegerField(IntegerField):
-    """A BigInteger field, until Django ticket #399 lands (if ever.)"""
+class BigAutoField(AutoField):
+    """A bigint IDENTITY field"""
     def get_internal_type(self):
-        return "BigIntegerField"
+        return "BigAutoField"
 
     def to_python(self, value):
         if value is None:
@@ -20,10 +20,15 @@ class BigIntegerField(IntegerField):
             return None
         return long(value)
 
-class BigAutoField(AutoField):
-    """A bigint IDENTITY field"""
+class BigForeignKey(ForeignKey):
+    """A ForeignKey field that points to a BigAutoField or BigIntegerField"""
+    def db_type(self):
+        return BigIntegerField().db_type()
+
+class BigIntegerField(IntegerField):
+    """A BigInteger field, until Django ticket #399 lands (if ever.)"""
     def get_internal_type(self):
-        return "BigAutoField"
+        return "BigIntegerField"
 
     def to_python(self, value):
         if value is None:
