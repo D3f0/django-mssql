@@ -3,6 +3,7 @@ import decimal
 from django.db import models, IntegrityError
 from django.test import TestCase
 from django.core.paginator import Paginator
+from sqlserver_ado.fields import BigAutoField, BigIntegerField
 
 class Bug19Table(models.Model):
     """ A simple model for testing string comparisons.
@@ -276,3 +277,17 @@ class Bug62TestCase(TestCase):
         
         q = list(Bug62Table.objects.exclude(email=u''))
         self.assertEqual(len(q), 2)
+
+class Bug63Table(models.Model):
+    """
+    Test that the BigAutoField and BigIntegerField fields work.
+
+    >>> Bug63Table(number=2147483648L).save()
+    >>> len(list(Bug63Table.objects.all()))
+    1
+    >>> big = Bug63Table.objects.get(number=2147483648L)
+    >>> big.number
+    2147483648L
+    """
+    id = BigAutoField(primary_key=True)
+    number = BigIntegerField()

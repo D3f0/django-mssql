@@ -8,6 +8,7 @@ import sys
 class DatabaseCreation(BaseDatabaseCreation):
     data_types = {
         'AutoField':            'int IDENTITY (1, 1)',
+        'BigAutoField':         'bigint IDENTITY (1, 1)',
         'BigIntegerField':      'bigint',
         'BooleanField':         'bit',
         'CharField':            'nvarchar(%(max_length)s)',
