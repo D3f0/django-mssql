@@ -473,6 +473,14 @@ class Cursor(object):
             parameter_replacements.append('?')
             try:
                 p = self.cmd.CreateParameter('p%i' % i, _ado_type(value))
+            except KeyError:
+                _message = u'Failed to map python type "{0}" to an ADO type'.format(value.__class__.__name__)
+                self._raiseCursorError(DataError, _message)
+            except:    
+                _message = u'Creating Parameter p%i, %s' % (i, _ado_type(value))
+                self._raiseCursorError(DataError, _message)
+
+            try:
                 _configure_parameter(p, value)
                 self.cmd.Parameters.Append(p)
             except:
