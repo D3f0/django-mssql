@@ -16,6 +16,13 @@ adXactSerializable    = 0x100000
 adUseClient = 3
 adUseServer = 2
 
+# CursorTypeEnum
+adOpenDynamic       = 2
+adOpenForwardOnly   = 0
+adOpenKeyset        = 1
+adOpenStatic        = 3
+adOpenUnspecified   = -1
+
 # CommandTypeEnum
 adCmdText = 1
 adCmdStoredProc = 4
@@ -38,8 +45,15 @@ adStateFetching   = 8
 adFldMayBeNull = 0x40
 
 # ConnectModeEnum
-# To-do: Add the other adMode consts or remove this definition
-adModeShareExclusive = 12
+adModeUnknown           = 0
+adModeRead              = 1
+adModeWrite             = 2
+adModeReadWrite         = 3
+adModeShareDenyRead     = 4
+adModeShareDenyWrite    = 8
+adModeShareExclusive    = 12
+adModeShareDenyNone     = 16
+adModeRecursive         = 0x400000
 
 # XactAttributeEnum
 adXactCommitRetaining = 131072
