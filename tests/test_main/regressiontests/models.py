@@ -246,7 +246,7 @@ class Bug41Table(models.Model):
     """
 
     a = models.IntegerField()
-    
+
 class Bug62Table(models.Model):
     email = models.CharField(max_length=255, blank=True)
 
@@ -307,3 +307,31 @@ class Bug64Table(models.Model):
     """
     
     key = BigForeignKey(Bug63Table)
+
+
+class Bug66Table(models.Model):
+    """
+    Test that pagination works when pk uses db_column
+
+    >>> Bug66Table(a=100).save()
+    >>> Bug66Table(a=101).save()
+    >>> Bug66Table(a=102).save()
+    >>> len(list(Bug66Table.objects.all()))
+    3
+
+    >>> objs = Bug66Table.objects.all()
+    >>> all_objs = Paginator(objs, 1)
+    >>> all_objs.count
+    3
+    >>> all_objs.num_pages
+    3
+    >>> page1 = all_objs.page(1)
+    >>> page1.object_list[0].a
+    100
+    >>> page2 = all_objs.page(2)
+    >>> page2.object_list[0].a
+    101
+    """
+    id = models.AutoField(primary_key=True, db_column='bug41id')
+    a = models.IntegerField()
+    

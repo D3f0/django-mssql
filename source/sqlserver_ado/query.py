@@ -84,7 +84,8 @@ def query_class(QueryClass):
             if order is None:
                 meta = self.get_meta()
                 qn = self.connection.ops.quote_name
-                order = '%s.%s ASC' % (qn(meta.db_table), qn(meta.pk.attname))
+                column = meta.pk.db_column or meta.pk.get_attname()
+                order = '%s.%s ASC' % (qn(meta.db_table), qn(column))
             
             where_row_num = "%s < _row_num" % (self.low_mark)
             if self.high_mark:
