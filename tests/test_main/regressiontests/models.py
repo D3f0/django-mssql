@@ -250,6 +250,34 @@ class Bug41Table(models.Model):
 class Bug62Table(models.Model):
     email = models.CharField(max_length=255, blank=True)
 
+class Bug58TableRecipe(models.Model):
+    name = models.CharField(max_length=30)
+
+class Bug58TableIngredient(models.Model):
+    name = models.CharField(max_length=30)
+
+class Bug58TableItem(models.Model):
+    recipe = models.ForeignKey(Bug58TableRecipe, related_name='item')
+    ingredient = models.ForeignKey(Bug58TableIngredient, related_name='item')
+    amount = models.CharField(max_length=30)
+
+class Bug58TestCase(TestCase):
+    def testDistinctRelated(self):
+        i1 = Bug58TableIngredient(name='bread')
+        i1.save()
+        i2 = Bug58TableIngredient(name='butter')
+        i2.save()
+        
+        r = Bug58TableRecipe(name='toast')
+        r.save()
+        
+        Bug58TableItem(recipe=r, ingredient=i1, amount='1 slice').save()
+        Bug58TableItem(recipe=r, ingredient=i2, amount='1 Tbsp').save()
+
+        q = list(Bug58TableRecipe.objects.filter(item__ingredient__name__in=['bread','butter']).distinct())
+        self.assertEqual(len(q), 1)
+
+
 class Bug62TestCase(TestCase):
     def testExclude(self):
         Bug62Table(email='').save()
