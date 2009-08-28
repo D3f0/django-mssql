@@ -80,12 +80,25 @@ def query_class(QueryClass):
 
             order, limit_ignore, offset_ignore = _get_order_limit_offset(raw_sql)
             
+            qn = self.connection.ops.quote_name
+
+            inner_table_name = qn('AAAA')
+
             # Using ROW_NUMBER requires an ordering
             if order is None:
-                meta = self.get_meta()
-                qn = self.connection.ops.quote_name
+                meta = self.get_meta()                
                 column = meta.pk.db_column or meta.pk.get_attname()
-                order = '%s.%s ASC' % (qn(meta.db_table), qn(column))
+                order = '%s.%s ASC' % (inner_table_name, qn(column))
+            else:
+                # remap order for injected subselect
+                new_order = []
+                for x in order.split(','):
+                    if x.find('.') != -1:
+                        tbl, col = x.rsplit('.', 1)
+                    else:
+                        col = x
+                    new_order.append('%s.%s' % (inner_table_name, col))
+                order = ', '.join(new_order)
             
             where_row_num = "%s < _row_num" % (self.low_mark)
             if self.high_mark:
@@ -94,6 +107,24 @@ def query_class(QueryClass):
             # Lop off ORDER... and the initial "SELECT"
             inner_select = _remove_order_limit_offset(raw_sql)
             outer_fields, inner_select = self._alias_columns(inner_select)
+            
+            
+            # map a copy of outer_fields for injected subselect
+            f = []
+            for x in outer_fields.split(','):
+                i = x.find(' AS ')
+                if i != -1:
+                    x = x[i+4:]
+                if x.find('.') != -1:
+                    tbl, col = x.rsplit('.', 1)
+                else:
+                    col = x
+                f.append('%s.%s' % (inner_table_name, col.strip()))
+            
+            
+            # inject a subselect to get around OVER requiring ORDER BY to come from FROM
+            inner_select = '%s FROM ( SELECT %s ) AS %s'\
+                 % (', '.join(f), inner_select, inner_table_name)
             
             sql = "SELECT _row_num, %s FROM ( SELECT ROW_NUMBER() OVER ( ORDER BY %s) as _row_num, %s) as QQQ where %s"\
                  % (outer_fields, order, inner_select, where_row_num)
