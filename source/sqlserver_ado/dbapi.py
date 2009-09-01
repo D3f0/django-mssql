@@ -129,7 +129,7 @@ def connect(connection_string, timeout=30):
         raise OperationalError(e, "Error opening connection: " + connection_string)
 
 def _use_transactions(c):
-    """Return True if the given ADODB.Connection supports transations."""
+    """Return True if the given ADODB.Connection supports transactions."""
     for prop in c.Properties:
         if prop.Name == 'Transaction DDL':
             return prop.Value > 0
@@ -219,7 +219,7 @@ class Connection(object):
         eh(self, None, errorclass, errorvalue)
 
     def _close_connection(self):
-        """Close the underlying ADO Connection object, rolling back an active transation if supported."""
+        """Close the underlying ADO Connection object, rolling back an active transaction if supported."""
         if self.supportsTransactions:
             self.adoConn.RollbackTrans()
         self.adoConn.Close()
@@ -254,7 +254,7 @@ class Connection(object):
             self._raiseConnectionError(Error, e)
 
     def rollback(self):
-        """Abort a pending transation."""
+        """Abort a pending transaction."""
         self.messages = []
         if not self.supportsTransactions:
             self._raiseConnectionError(NotSupportedError, None)
