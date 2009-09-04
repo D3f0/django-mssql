@@ -109,10 +109,19 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.creation = DatabaseCreation(self) 
         self.introspection = DatabaseIntrospection(self)
         self.validation = BaseDatabaseValidation()
+
+        from django.conf import settings
+        self.command_timeout = getattr(settings, 'DATABASE_COMMAND_TIMEOUT', 30)
+        if type(self.command_timeout) != int:
+            self.command_timeout = 30
         
     def _cursor(self):
         if self.connection is None:
-            self.connection = Database.connect(make_connection_string(self.settings_dict))
+            
+            self.connection = Database.connect(
+                                make_connection_string(self.settings_dict),
+                                self.command_timeout
+                              )
             connection_created.send(sender=self.__class__)
 
         return Database.Cursor(self.connection)
