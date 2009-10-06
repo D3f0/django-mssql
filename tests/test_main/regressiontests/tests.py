@@ -2,6 +2,7 @@ import decimal
 from django.db import models
 from django.test import TestCase
 
+from regressiontests.models import Bug69Table1, Bug69Table2
 
 class Bug38Table(models.Model):
     d = models.DecimalField(max_digits=5, decimal_places=2)
@@ -71,3 +72,18 @@ class Bug38TestCase(TestCase):
         Bug38Table(d=decimal.Decimal('0450.0')).save()
         d1 = Bug38Table.objects.all()[0]
         self.assertEquals(decimal.Decimal('450.0'), d1.d)
+
+
+class Bug69TestCase(TestCase):
+    def setUp(self):
+        for x in xrange(0,5):
+            Bug69Table2.objects.create(
+                id=x,
+                related_obj=Bug69Table1.objects.create(id=x),
+            )
+        
+    def testConflictingFieldNames(self):
+        objs = list(Bug69Table2.objects.select_related('related_obj')[2:4])
+        self.assertEqual(len(objs), 2)
+
+        

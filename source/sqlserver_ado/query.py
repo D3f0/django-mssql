@@ -107,8 +107,7 @@ def query_class(QueryClass):
             # Lop off ORDER... and the initial "SELECT"
             inner_select = _remove_order_limit_offset(raw_sql)
             outer_fields, inner_select = self._alias_columns(inner_select)
-            
-            
+
             # map a copy of outer_fields for injected subselect
             f = []
             for x in outer_fields.split(','):
@@ -146,17 +145,18 @@ def query_class(QueryClass):
             select_list, from_clause = _break(sql, ' FROM [')
             for col in [x.strip() for x in select_list.split(',')]:
                 col_name = re.search(_pat_col, col).group(1)
-                
+                col_key = col_name.lower()
+
                 # If column name was already seen, alias it.
                 if col_name in names_seen:
-                    alias = qn('%s___%s' % (col_name, names_seen.count(col_name)))
+                    alias = qn('%s___%s' % (col_name, names_seen.count(col_key)))
                     outer.append(alias)
                     inner.append("%s as %s" % (col, alias))
                 else:
                     outer.append(qn(col_name))
                     inner.append(col)
 
-                names_seen.append(col_name)
+                names_seen.append(col_key)
 
             # Add FROM clause back to inner select
             return ', '.join(outer), ', '.join(inner) + from_clause

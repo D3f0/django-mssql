@@ -363,3 +363,19 @@ class Bug66Table(models.Model):
     id = models.AutoField(primary_key=True, db_column='bug41id')
     a = models.IntegerField()
     
+
+class Bug69Table1(models.Model):
+    """
+    Test that pagination works when db_column is specified but the text case
+    does not match between tables.
+    
+    http://code.google.com/p/django-mssql/issues/detail?id=69
+    """
+    # db_column is lowercase here
+    id = models.IntegerField(primary_key=True, db_column='table1id')
+    
+
+class Bug69Table2(models.Model):
+    id = models.IntegerField(primary_key=True, db_column='Table2Id')
+    # db_column is camelcase here
+    related_obj = models.ForeignKey(Bug69Table1, db_column='Table1Id')
