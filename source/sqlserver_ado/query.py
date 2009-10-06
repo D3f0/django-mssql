@@ -12,6 +12,19 @@ import re
 _re_order_limit_offset = re.compile(
     r'(?:ORDER BY\s+(.+?))?\s*(?:LIMIT\s+(\d+))?\s*(?:OFFSET\s+(\d+))?$')
 
+# Pattern to find the quoted column name at the end of a field specification
+_re_pat_col = re.compile(r"\[([^[]+)\]$")
+
+# Pattern to find each of the parts of a column name (extra_select, table, field)
+_re_pat_col_parts = re.compile(
+    r'(?:' +
+    r'(\([^\)]+\))\s+as\s+' +
+    r'|(\[[^[]+\])\.' +
+    r')?' +
+    r'\[([^[]+)\]$',
+    re.IGNORECASE
+)
+
 def _break(s, find):
     """Break a string s into the part before the substring to find, 
     and the part including and after the substring."""
@@ -81,7 +94,7 @@ def query_class(QueryClass):
             order, limit_ignore, offset_ignore = _get_order_limit_offset(raw_sql)
             
             qn = self.connection.ops.quote_name
-
+            
             inner_table_name = qn('AAAA')
 
             # Using ROW_NUMBER requires an ordering
@@ -134,21 +147,17 @@ def query_class(QueryClass):
             """Return tuple of SELECT and FROM clauses, aliasing duplicate column names."""
             qn = self.connection.ops.quote_name
             
-            # Pattern to find the quoted column name at the end of a field specification
-            _pat_col = r"\[([^[]+)\]$"  
-            #]) Funky comment to get e's syntax highlighting back on track. 
-        
             outer = list()
             inner = list()
             names_seen = list()
             
             select_list, from_clause = _break(sql, ' FROM [')
             for col in [x.strip() for x in select_list.split(',')]:
-                col_name = re.search(_pat_col, col).group(1)
+                col_name = _re_pat_col.search(col).group(1)
                 col_key = col_name.lower()
 
                 # If column name was already seen, alias it.
-                if col_name in names_seen:
+                if col_key in names_seen:
                     alias = qn('%s___%s' % (col_name, names_seen.count(col_key)))
                     outer.append(alias)
                     inner.append("%s as %s" % (col, alias))
