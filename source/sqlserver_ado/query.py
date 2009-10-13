@@ -173,8 +173,8 @@ def query_class(QueryClass):
         def _insert_as_sql(self, *args, **kwargs):
             sql, params = self._parent_as_sql(*args,**kwargs)
             meta = self.get_meta()
-            
-            if (meta.pk.attname in self.columns) and (meta.pk.__class__.__name__ == "AutoField"):
+
+            if meta.has_auto_field and meta.auto_field.db_column in self.columns:
                 quoted_table = self.connection.ops.quote_name(meta.db_table)
                 sql = "SET IDENTITY_INSERT %s ON;%s;SET IDENTITY_INSERT %s OFF" %\
                     (quoted_table, sql, quoted_table)
