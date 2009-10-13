@@ -174,10 +174,14 @@ def query_class(QueryClass):
             sql, params = self._parent_as_sql(*args,**kwargs)
             meta = self.get_meta()
 
-            if meta.has_auto_field and meta.auto_field.db_column in self.columns:
-                quoted_table = self.connection.ops.quote_name(meta.db_table)
-                sql = "SET IDENTITY_INSERT %s ON;%s;SET IDENTITY_INSERT %s OFF" %\
-                    (quoted_table, sql, quoted_table)
+            if meta.has_auto_field:
+                # db_column is None if not explicitly specified by model field
+                auto_field_column = meta.auto_field.db_column or meta.auto_field.column
+
+                if auto_field_column in self.columns:
+                    quoted_table = self.connection.ops.quote_name(meta.db_table)
+                    sql = "SET IDENTITY_INSERT %s ON;%s;SET IDENTITY_INSERT %s OFF" %\
+                        (quoted_table, sql, quoted_table)
 
             return sql, params
 
