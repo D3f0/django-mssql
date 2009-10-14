@@ -187,7 +187,6 @@ class Bug35C2Table(Bug35CModel):
     name = models.CharField(max_length=10)
 
 
-# Bug 26 tables, RelatedA and RelatedB
 class Bug37ATable(models.Model):
     a = models.CharField(max_length=50)
     b = models.CharField(max_length=50)
@@ -379,3 +378,19 @@ class Bug69Table2(models.Model):
     id = models.IntegerField(primary_key=True, db_column='Table2Id')
     # db_column is camelcase here
     related_obj = models.ForeignKey(Bug69Table1, db_column='Table1Id')
+    
+
+class MyAutoField(models.AutoField): pass
+
+class Bug70Table(models.Model):
+	"""
+	Test that insert works with subclasses of AutoField.
+	
+    >>> Bug70Table(a=100).save()
+    >>> Bug70Table(a=101).save()
+    >>> Bug70Table(a=102).save()
+    >>> len(list(Bug70Table.objects.all()))
+    3
+	"""
+	id = models.MyAutoField(primary_key=True, db_column="Table70Id")
+	a = models.IntegerField()
