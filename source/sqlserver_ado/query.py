@@ -25,6 +25,9 @@ _re_pat_col_parts = re.compile(
     re.IGNORECASE
 )
 
+# Pattern used in column aliasing to find sub-select placeholders
+_re_col_placeholder = re.compile(r'\{_placeholder_(\d+)\}')
+
 def _break(s, find):
     """Break a string s into the part before the substring to find, 
     and the part including and after the substring."""
@@ -149,26 +152,75 @@ def query_class(QueryClass):
             
             outer = list()
             inner = list()
-            names_seen = list()
-            
-            select_list, from_clause = _break(sql, ' FROM [')
-            for col in [x.strip() for x in select_list.split(',')]:
-                col_name = _re_pat_col.search(col).group(1)
-                col_key = col_name.lower()
-
-                # If column name was already seen, alias it.
-                if col_key in names_seen:
-                    alias = qn('%s___%s' % (col_name, names_seen.count(col_key)))
-                    outer.append(alias)
-                    inner.append("%s as %s" % (col, alias))
+            names_seen = list()    
+        
+            # replace all parens with placeholders
+            paren_depth, paren_buf = 0, ['']
+            parens, i = {}, 0
+            for ch in sql:
+                if ch == '(':
+                    i += 1
+                    paren_depth += 1
+                    paren_buf.append('')
+                elif ch == ')':
+                    paren_depth -= 1
+                    key = '_placeholder_{0}'.format(i)
+                    buf = paren_buf.pop()
+                    
+                    # store the expanded paren string
+                    parens[key] = buf.format(**parens)
+                    paren_buf[paren_depth] += '({' + key + '})'
                 else:
-                    outer.append(qn(col_name))
-                    inner.append(col)
+                    paren_buf[paren_depth] += ch
+        
+            def _replace_sub(col):
+                """Replace all placeholders with expanded values"""
+                while True:
+                    m = _re_col_placeholder.search(col)
+                    if m:
+                        try:
+                            key = '_placeholder_{0}'.format(
+                                int(m.group(1))
+                            )
+                            col = col.format(**{
+                                key : parens[key]
+                            })
+                        except:
+                            # not a substituted value
+                            break
+                    else:
+                        break
+                return col
+        
+            temp_sql = ''.join(paren_buf)
+        
+            select_list, from_clause = _break(temp_sql, ' FROM [')
+            
+            for col in [x.strip() for x in select_list.split(',')]:
+                match = _re_pat_col.search(col)
+                if match:
+                    col_name = match.group(1)
+                    col_key = col_name.lower()
+                    
+                    if col_key in names_seen:
+                        alias = qn('%s___%s' % (col_name, names_seen.count(col_key)))
+                        outer.append(alias)
+        
+                        col = _replace_sub(col)
+        
+                        inner.append("%s as %s" % (col, alias))
+                    else:
+                        replaced = _replace_sub(col)
+                        
+                        outer.append(qn(col_name))
+                        inner.append(replaced)
 
-                names_seen.append(col_key)
+                    names_seen.append(col_key)
+                else:
+                    raise Exception('Unable to find a column name when parsing SQL: {0}'.format(col))
+            
+            return ', '.join(outer), ', '.join(inner) + from_clause.format(**parens)
 
-            # Add FROM clause back to inner select
-            return ', '.join(outer), ', '.join(inner) + from_clause
 
         def _insert_as_sql(self, *args, **kwargs):
             sql, params = self._parent_as_sql(*args,**kwargs)
