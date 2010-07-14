@@ -81,6 +81,9 @@ def make_connection_string(settings):
         if 'extra_params' in options:
             parts.append(options['extra_params'])
         
+        if 'provider' in options:
+            parts[0] = 'PROVIDER={0}'.format(options['provider'])
+    
     return ";".join(parts)
 
 class DatabaseWrapper(BaseDatabaseWrapper):
