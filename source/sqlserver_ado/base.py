@@ -37,43 +37,55 @@ def make_connection_string(settings):
             self._dict = mapping
             
         def __getattr__(self, name):
-            if hasattr(self._dict, "get"):
-                return self._dict.get(name)
+            d = self._dict
+            result = None
+            if hasattr(d, "get"):
+                if d.has_key(name):
+                    result = d.get(name)
+                else:
+                    result = d.get('DATABASE_' + name)    
+            elif hasattr(d, 'DATABASE_' + name):
+                result = getattr(d, 'DATABASE_' + name)
             else:
-                return getattr(self._dict, name)
+                result = getattr(d, name)
+            return result    
             
     settings = wrap(settings) 
     
-    if settings.DATABASE_NAME == '':
-        raise ImproperlyConfigured("You need to specify a DATABASE_NAME in your Django settings file.")
+    db_name = settings.NAME.strip()
+    db_host = settings.HOST or '127.0.0.1'
+    if len(db_name) == 0:
+        raise ImproperlyConfigured("You need to specify a DATABASE NAME in your Django settings file.")
 
     # Connection strings courtesy of:
     # http://www.connectionstrings.com/?carrier=sqlserver
 
-    datasource = settings.DATABASE_HOST
-    if not datasource:
-        datasource = "127.0.0.1"
-
     # If a port is given, force a TCP/IP connection. The host should be an IP address in this case.
-    if settings.DATABASE_PORT != '':
-        if not _looks_like_ipaddress(datasource):
-            raise ImproperlyConfigured("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
-        datasource = '%s,%s;Network Library=DBMSSOCN' % (datasource, settings.DATABASE_PORT)
+    if settings.PORT != '':
+        if not _looks_like_ipaddress(db_host):
+            raise ImproperlyConfigured("When using DATABASE PORT, DATABASE HOST must be an IP address.")
+        datasource = '{host},{port};Network Library=DBMSSOCN'.format(
+            host=db_host,
+            port=settings.PORT
+        )
 
     # If no user is specified, use integrated security.
-    if settings.DATABASE_USER != '':
-        auth_string = "UID=%s;PWD=%s" % (settings.DATABASE_USER, settings.DATABASE_PASSWORD)
+    if settings.USER != '':
+        auth_string = "UID={user};PWD={password}".format(
+            user=settings.USER,
+            password=settings.PASSWORD
+        )
     else:
         auth_string = "Integrated Security=SSPI"
 
     parts = [
         "PROVIDER=SQLOLEDB", 
-        "DATA SOURCE="+datasource,
-        "Initial Catalog="+settings.DATABASE_NAME,
+        "DATA SOURCE={0}".format(db_host),
+        "Initial Catalog={0}".format(db_name),
         auth_string
     ]
     
-    options = settings.DATABASE_OPTIONS
+    options = settings.OPTIONS
     if options:
         if 'use_mars' in options and options['use_mars']:
             parts.append("MultipleActiveResultSets=true")
@@ -111,16 +123,14 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.client = BaseDatabaseClient(self)
         self.creation = DatabaseCreation(self) 
         self.introspection = DatabaseIntrospection(self)
-        self.validation = BaseDatabaseValidation()
+        self.validation = BaseDatabaseValidation(self)
 
-        from django.conf import settings
-        self.command_timeout = getattr(settings, 'DATABASE_COMMAND_TIMEOUT', 30)
+        self.command_timeout = getattr(self.settings_dict, 'COMMAND_TIMEOUT', 30)
         if type(self.command_timeout) != int:
             self.command_timeout = 30
         
     def _cursor(self):
         if self.connection is None:
-            
             self.connection = Database.connect(
                                 make_connection_string(self.settings_dict),
                                 self.command_timeout

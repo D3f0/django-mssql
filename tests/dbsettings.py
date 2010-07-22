@@ -3,14 +3,29 @@
 
 import os
 
-DATABASE_ENGINE = 'sqlserver_ado'
-DATABASE_HOST =  os.environ['COMPUTERNAME'] + '\\' + os.environ.get('SQLINSTANCE', 'ss2005')
-DATABASE_PORT = ''
-DATABASE_NAME = r'django_test_backend'
-
-# Use integrated auth.
+# use old style settings for non-django dbapi tests
+DATABASE_NAME = 'django_test_backend'
+DATABASE_HOST = os.environ['COMPUTERNAME'] + '\\' + os.environ.get('SQLINSTANCE', 'ss2008')
 DATABASE_USER = ''
 DATABASE_PASSWORD = ''
+DATABASE_COMMAND_TIMEOUT = 30
+DATABASE_ENGINE = 'sqlserver_ado'
+
+# django required database settings
+DATABASES = {
+    'default': {
+        'NAME': DATABASE_NAME,
+        'ENGINE': 'sqlserver_ado',
+        'HOST': DATABASE_HOST,
+        'USER': DATABASE_USER,
+        'PASSWORD': DATABASE_PASSWORD,
+        'COMMAND_TIMEOUT': DATABASE_COMMAND_TIMEOUT,
+        'OPTIONS' : {
+            #'provider': 'SQLNCLI10',
+            #'extra_params': 'DataTypeCompatibility=80;MARS Connection=True;',
+        },
+    }
+}
 
 # Adds the relative path for the MS SQL Server backend to Python's import path.
 # Note that it pops up two levels because this file is imported from modules another level down,
@@ -26,24 +41,29 @@ _hack_backend_path()
 def make_connection_string():
     # This function duplicates the Django connection string logic, but is meant
     # to be used by non-Django tests that want to share test db settings.
-    if DATABASE_NAME == '':
+    
+    settings = DATABASES.get('default', {})
+    
+    db_host = settings.get('HOST', '127.0.0.1')
+    db_port = settings.get('PORT', '')
+    db_name = settings.get('NAME', '')
+    db_user = settings.get('USER', '')
+    db_pass = settings.get('PASSWORD', '')
+    
+    if db_name == '':
         raise Exception("You need to specify a DATABASE_NAME in your Django settings file.")
 
-    datasource = DATABASE_HOST
-    if not datasource:
-        datasource = "127.0.0.1"
-
     # If a port is given, force a TCP/IP connection. The host should be an IP address in this case.
-    if DATABASE_PORT != '':
-        if not _looks_like_ipaddress(datasource):
+    if db_port != '':
+        if not _looks_like_ipaddress(db_host):
             raise Exception("When using DATABASE_PORT, DATABASE_HOST must be an IP address.")
-        datasource = '%s,%s;Network Library=DBMSSOCN' % (datasource, DATABASE_PORT)
+        datasource = '%s,%s;Network Library=DBMSSOCN' % (db_host, db_port)
 
     # If no user is specified, use integrated security.
-    if DATABASE_USER != '':
-        auth_string = "UID=%s;PWD=%s" % (DATABASE_USER, DATABASE_PASSWORD)
+    if db_user != '':
+        auth_string = "UID=%s;PWD=%s" % (db_user, db_pass)
     else:
         auth_string = "Integrated Security=SSPI"
 
     return "PROVIDER=SQLOLEDB;DATA SOURCE=%s;Initial Catalog=%s;%s" % \
-        (datasource, DATABASE_NAME, auth_string)
+        (db_host, db_name, auth_string)

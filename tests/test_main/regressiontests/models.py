@@ -380,7 +380,8 @@ class Bug69Table2(models.Model):
     related_obj = models.ForeignKey(Bug69Table1, db_column='Table1Id')
     
 
-class MyAutoField(models.AutoField): pass
+class MyAutoField(models.AutoField): 
+    pass
 
 class Bug70Table(models.Model):
 	"""
@@ -392,5 +393,5 @@ class Bug70Table(models.Model):
     >>> len(list(Bug70Table.objects.all()))
     3
 	"""
-	id = models.MyAutoField(primary_key=True, db_column="Table70Id")
+	id = MyAutoField(primary_key=True, db_column="Table70Id")
 	a = models.IntegerField()

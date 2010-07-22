@@ -2,9 +2,10 @@ from django.db.backends import BaseDatabaseOperations
 import datetime
 import time
 
-import query
 
 class DatabaseOperations(BaseDatabaseOperations):
+    compiler_module = "sqlserver_ado.compiler"
+    
     def date_extract_sql(self, lookup_type, field_name):
         return "DATEPART(%s, %s)" % (lookup_type, self.quote_name(field_name))
 
@@ -39,9 +40,6 @@ class DatabaseOperations(BaseDatabaseOperations):
                 replace("[", "\[").\
                 replace("]", "\]")
             )
-
-    def query_class(self, DefaultQueryClass):
-        return query.query_class(DefaultQueryClass)
 
     def quote_name(self, name):
         if name.startswith('[') and name.endswith(']'):
