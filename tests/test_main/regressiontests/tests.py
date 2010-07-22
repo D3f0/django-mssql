@@ -2,7 +2,7 @@ import decimal
 from django.db import models
 from django.test import TestCase
 
-from regressiontests.models import Bug69Table1, Bug69Table2
+from regressiontests.models import Bug69Table1, Bug69Table2, Bug70Table
 
 class Bug38Table(models.Model):
     d = models.DecimalField(max_digits=5, decimal_places=2)
@@ -86,4 +86,18 @@ class Bug69TestCase(TestCase):
         objs = list(Bug69Table2.objects.select_related('related_obj')[2:4])
         self.assertEqual(len(objs), 2)
 
+
+
+class Bug70TestCase(TestCase):
+    def testInsert(self):
+        Bug70Table.objects.create(a=100);
+        Bug70Table.objects.create(a=101);
+        Bug70Table.objects.create(a=102);
+        
+        results = Bug70Table.objects.all()
+        
+        self.assertEquals(results.count(), 3)
+        
+        self.assertTrue(hasattr(results[0], 'id'))
+        self.assertTrue(results[0].id == 1)
         

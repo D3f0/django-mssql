@@ -381,17 +381,16 @@ class Bug69Table2(models.Model):
     
 
 class MyAutoField(models.AutoField): 
-    pass
+    def get_internal_type(self):
+        """
+        Need to explicitly specify this internal type as AutoField so 
+        it maps to a recognized database type. See Django ticket #13516
+        """
+        return "AutoField"
 
 class Bug70Table(models.Model):
 	"""
 	Test that insert works with subclasses of AutoField.
-	
-    >>> Bug70Table(a=100).save()
-    >>> Bug70Table(a=101).save()
-    >>> Bug70Table(a=102).save()
-    >>> len(list(Bug70Table.objects.all()))
-    3
 	"""
 	id = MyAutoField(primary_key=True, db_column="Table70Id")
 	a = models.IntegerField()
