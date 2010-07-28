@@ -200,6 +200,10 @@ class SQLCompiler(compiler.SQLCompiler):
 
 class SQLInsertCompiler(compiler.SQLInsertCompiler, SQLCompiler):
     def as_sql(self, *args, **kwargs):
+        # Fix for Django ticket #14019
+        if not hasattr(self, 'return_id'):
+            self.return_id = False
+
         sql, params = super(SQLInsertCompiler, self).as_sql(*args, **kwargs)
 
         meta = self.query.get_meta()
