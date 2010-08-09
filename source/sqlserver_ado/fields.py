@@ -1,5 +1,6 @@
 """This module provides SQL Server specific fields for Django models."""
 from django.db.models import AutoField, ForeignKey, IntegerField
+from django.forms import ValidationError
 
 class BigAutoField(AutoField):
     """A bigint IDENTITY field"""
@@ -12,7 +13,7 @@ class BigAutoField(AutoField):
         try:
             return long(value)
         except (TypeError, ValueError):
-            raise exceptions.ValidationError(
+            raise ValidationError(
                 _("This value must be an long."))
 
     def get_db_prep_value(self, value):
@@ -36,7 +37,7 @@ class BigIntegerField(IntegerField):
         try:
             return long(value)
         except (TypeError, ValueError):
-            raise exceptions.ValidationError(
+            raise ValidationError(
                 _("This value must be an long."))
 
     def get_db_prep_value(self, value):
