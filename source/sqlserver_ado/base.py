@@ -64,24 +64,18 @@ def make_connection_string(settings):
     if settings.PORT != '':
         if not _looks_like_ipaddress(db_host):
             raise ImproperlyConfigured("When using DATABASE PORT, DATABASE HOST must be an IP address.")
-        datasource = '{host},{port};Network Library=DBMSSOCN'.format(
-            host=db_host,
-            port=settings.PORT
-        )
+        datasource = '%s,%i;Network Library=DBMSSOCN' % (db_host, settings.PORT)
 
     # If no user is specified, use integrated security.
     if settings.USER != '':
-        auth_string = "UID={user};PWD={password}".format(
-            user=settings.USER,
-            password=settings.PASSWORD
-        )
+        auth_string = "UID=%s;PWD=%s" % (settings.USER, settings.PASSWORD)
     else:
         auth_string = "Integrated Security=SSPI"
 
     parts = [
         "PROVIDER=SQLOLEDB", 
-        "DATA SOURCE={0}".format(db_host),
-        "Initial Catalog={0}".format(db_name),
+        "DATA SOURCE=%s" % (db_host,),
+        "Initial Catalog=%s" % (db_name,),
         auth_string
     ]
     
@@ -94,7 +88,7 @@ def make_connection_string(settings):
             parts.append(options['extra_params'])
         
         if 'provider' in options:
-            parts[0] = 'PROVIDER={0}'.format(options['provider'])
+            parts[0] = 'PROVIDER=%s' % (options['provider'],)
     
     return ";".join(parts)
 
