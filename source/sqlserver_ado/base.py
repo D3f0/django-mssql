@@ -119,8 +119,9 @@ class DatabaseWrapper(BaseDatabaseWrapper):
         self.introspection = DatabaseIntrospection(self)
         self.validation = BaseDatabaseValidation(self)
 
-        self.command_timeout = getattr(self.settings_dict, 'COMMAND_TIMEOUT', 30)
-        if type(self.command_timeout) != int:
+        try:
+            self.command_timeout = int(self.settings_dict.get('COMMAND_TIMEOUT', 30))
+        except ValueError:   
             self.command_timeout = 30
         
     def _cursor(self):
