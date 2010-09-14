@@ -100,4 +100,18 @@ class Bug70TestCase(TestCase):
         
         self.assertTrue(hasattr(results[0], 'id'))
         self.assertTrue(results[0].id == 1)
+
+class Bug85TestCase(TestCase):
+    def testEuropeanDecimalConversion(self):
+        from sqlserver_ado.dbapi import _cvtDecimal
+        
+        val1 = _cvtDecimal('0,05')
+        self.assertEqual(decimal.Decimal('0.05'), val1)
+        
+    def testEuropeanFloatConversion(self):
+        from sqlserver_ado.dbapi import _cvtFloat
+        
+        val1 = _cvtFloat('0,05')
+        self.assertEqual(float('0.05'), val1)
+        
         

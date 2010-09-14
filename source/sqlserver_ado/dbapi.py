@@ -637,7 +637,7 @@ def _cvtFloat(variant):
 def _convertNumberWithCulture(variant, f):
     try:
         return f(variant)
-    except (ValueError,TypeError):
+    except (ValueError,TypeError,decimal.InvalidOperation):
         try:
             europeVsUS = str(variant).replace(",",".")
             return f(europeVsUS)
