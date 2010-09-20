@@ -1,6 +1,7 @@
 """This module provides SQL Server specific fields for Django models."""
 from django.db.models import AutoField, ForeignKey, IntegerField
 from django.forms import ValidationError
+from django.utils.translation import ugettext_lazy as _
 
 class BigAutoField(AutoField):
     """A bigint IDENTITY field"""
@@ -14,7 +15,7 @@ class BigAutoField(AutoField):
             return long(value)
         except (TypeError, ValueError):
             raise ValidationError(
-                _("This value must be an long."))
+                _("This value must be a long."))
 
     def get_db_prep_value(self, value):
         if value is None:
@@ -38,7 +39,7 @@ class BigIntegerField(IntegerField):
             return long(value)
         except (TypeError, ValueError):
             raise ValidationError(
-                _("This value must be an long."))
+                _("This value must be a long."))
 
     def get_db_prep_value(self, value):
         if value is None:
