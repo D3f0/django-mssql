@@ -1,8 +1,9 @@
+import datetime
 import decimal
 from django.db import models
 from django.test import TestCase
 
-from regressiontests.models import Bug69Table1, Bug69Table2, Bug70Table
+from regressiontests.models import Bug69Table1, Bug69Table2, Bug70Table, Bug93Table
 
 class Bug38Table(models.Model):
     d = models.DecimalField(max_digits=5, decimal_places=2)
@@ -114,4 +115,36 @@ class Bug85TestCase(TestCase):
         val1 = _cvtFloat('0,05')
         self.assertEqual(float('0.05'), val1)
         
+
+class Bug93TestCase(TestCase):
+    def setUp(self):
+        dates = (
+            (2009, 1),
+            (2009, 2),
+            (2009, 3),
+            (2010, 1),
+            (2010, 2)
+        )
+            
+        for year, month in dates:
+            dt = datetime.datetime(year, month, 1)
+
+            Bug93Table.objects.create(
+                dt=dt,
+                d=dt.date()
+            )   
+    
+    def testDateYear(self):
+        dates = Bug93Table.objects.filter(d__year=2009)
+        self.assertTrue(dates.count() == 3)
+
+        dates = Bug93Table.objects.filter(d__year='2010')
+        self.assertTrue(dates.count() == 2)
         
+        
+    def testDateTimeYear(self):
+        dates = Bug93Table.objects.filter(dt__year=2009)
+        self.assertTrue(dates.count() == 3)
+
+        dates = Bug93Table.objects.filter(dt__year='2010')
+        self.assertTrue(dates.count() == 2)

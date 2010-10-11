@@ -394,3 +394,10 @@ class Bug70Table(models.Model):
 	"""
 	id = MyAutoField(primary_key=True, db_column="Table70Id")
 	a = models.IntegerField()
+
+class Bug93Table(models.Model):
+    """
+    Test that __year works.
+    """
+    d = models.DateField()
+    dt = models.DateTimeField()
