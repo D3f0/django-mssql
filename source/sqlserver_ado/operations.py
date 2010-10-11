@@ -155,6 +155,6 @@ class DatabaseOperations(BaseDatabaseOperations):
 
         `value` is an int, containing the looked-up year.
         """
-        first = '%s-01-01 00:00:00'
-        second = '%s-12-31 23:59:59'
-        return [first % value, second % value]
+        first = datetime.datetime(value, 1, 1)
+        second = datetime.datetime(value, 12, 31, 23, 59, 59, 999)
+        return [first, second]
