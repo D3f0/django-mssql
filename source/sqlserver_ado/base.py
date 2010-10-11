@@ -64,7 +64,11 @@ def make_connection_string(settings):
     if settings.PORT != '':
         if not _looks_like_ipaddress(db_host):
             raise ImproperlyConfigured("When using DATABASE PORT, DATABASE HOST must be an IP address.")
-        datasource = '%s,%i;Network Library=DBMSSOCN' % (db_host, settings.PORT)
+        try:
+            port = int(settings.PORT)
+        except ValueError:
+            raise ImproperlyConfigured("DATABASE PORT must be a number.")
+        datasource = '%s,%i;Network Library=DBMSSOCN' % (db_host, port)
 
     # If no user is specified, use integrated security.
     if settings.USER != '':
