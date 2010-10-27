@@ -4,7 +4,7 @@ version = __import__('sqlserver_ado').get_version()
 
 setup(
     name='django-mssql',
-    version=version,
+    version=version.replace(' ', '-'),
     maintainer='Michael Manfre',
     maintainer_email='mmanfre@gmail.com',
     url='http://django-mssql.googlecode.com/',
