@@ -1,0 +1,31 @@
+To deploy this assembly to your Database, you have a couple of options.
+
+A) You can put in your connection string information in the regex_clr 
+	project's properties. Pressing "play" (ie, running) the solution will
+	then deploy the assembly to the designated server.
+	
+B) You can issue "CREATE ASSEMBLY" statements in a SQL console
+	or build script, as described here:
+	http://technet.microsoft.com/en-us/library/ms345099.aspx
+	
+In both cases you may need to enable CLR support in your database
+as described here:
+	http://technet.microsoft.com/en-us/library/ms131048.aspx
+
+To enable CLR:
+	sp_configure 'show advanced options', 1;
+	GO
+	RECONFIGURE;
+	GO
+	sp_configure 'clr enabled', 1;
+	GO
+	RECONFIGURE;
+	GO
+
+To pull in the UDF from the assembly:
+create function REGEXP_LIKE(
+	@input nvarchar(4000),
+	@pattern nvarchar(4000),
+	@caseSensitive int)
+RETURNS INT 
+AS EXTERNAL NAME regex_clr.UserDefinedFunctions.REGEXP_LIKE
